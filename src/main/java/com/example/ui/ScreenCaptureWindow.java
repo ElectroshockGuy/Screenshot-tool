@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -112,11 +112,15 @@ public class ScreenCaptureWindow extends JFrame {
         
         JButton numberButton = createToolButton("① 序号", "添加序号标注");
         numberButton.addActionListener(e -> setAnnotationMode(AnnotationMode.NUMBER));
+        
+        JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
+        rectButton.addActionListener(e -> setAnnotationMode(AnnotationMode.RECT));
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
         toolBar.add(mosaicButton);
         toolBar.add(numberButton);
+        toolBar.add(rectButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -381,6 +385,14 @@ public class ScreenCaptureWindow extends JFrame {
             if (w > 5 && h > 5) {
                 annotations.add(new MosaicAnnotation(new Rectangle(x, y, w, h)));
             }
+        } else if (currentMode == AnnotationMode.RECT) {
+            int x = Math.min(annotationStart.x, annotationEnd.x);
+            int y = Math.min(annotationStart.y, annotationEnd.y);
+            int w = Math.abs(annotationEnd.x - annotationStart.x);
+            int h = Math.abs(annotationEnd.y - annotationStart.y);
+            if (w > 5 && h > 5) {
+                annotations.add(new RectAnnotation(new Rectangle(x, y, w, h), annotationColor));
+            }
         }
         
         annotationStart = null;
@@ -627,6 +639,8 @@ public class ScreenCaptureWindow extends JFrame {
                     drawArrowPreview(g2d, annotationStart, annotationEnd);
                 } else if (currentMode == AnnotationMode.MOSAIC) {
                     drawMosaicPreview(g2d, annotationStart, annotationEnd);
+                } else if (currentMode == AnnotationMode.RECT) {
+                    drawRectPreview(g2d, annotationStart, annotationEnd);
                 }
             }
             
@@ -684,6 +698,19 @@ public class ScreenCaptureWindow extends JFrame {
                 // 绘制马赛克预览边框
                 g2d.setColor(new Color(255, 0, 0, 128));
                 g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_BEVEL, 0, new float[]{5}, 0));
+                g2d.drawRect(x, y, w, h);
+            }
+        }
+        
+        private void drawRectPreview(Graphics2D g2d, Point start, Point end) {
+            int x = Math.min(start.x, end.x);
+            int y = Math.min(start.y, end.y);
+            int w = Math.abs(end.x - start.x);
+            int h = Math.abs(end.y - start.y);
+            
+            if (w > 5 && h > 5) {
+                g2d.setColor(annotationColor);
+                g2d.setStroke(new BasicStroke(2));
                 g2d.drawRect(x, y, w, h);
             }
         }
@@ -1020,6 +1047,44 @@ public class ScreenCaptureWindow extends JFrame {
         public void move(int dx, int dy) {
             this.x += dx;
             this.y += dy;
+        }
+    }
+
+    /**
+     * 矩形标注
+     */
+    private static class RectAnnotation implements Annotation {
+        private Rectangle rect;
+        private final Color color;
+
+        public RectAnnotation(Rectangle rect, Color color) {
+            this.rect = new Rectangle(rect);
+            this.color = color;
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            g2d.setColor(color);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawRect(rect.x + offsetX, rect.y + offsetY, rect.width, rect.height);
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            // 检测点是否在矩形边框附近（容差8像素）
+            int tolerance = 8;
+            Rectangle outer = new Rectangle(rect.x - tolerance, rect.y - tolerance, 
+                                           rect.width + 2 * tolerance, rect.height + 2 * tolerance);
+            Rectangle inner = new Rectangle(rect.x + tolerance, rect.y + tolerance, 
+                                           Math.max(0, rect.width - 2 * tolerance), 
+                                           Math.max(0, rect.height - 2 * tolerance));
+            return outer.contains(p) && !inner.contains(p);
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            rect.x += dx;
+            rect.y += dy;
         }
     }
 
