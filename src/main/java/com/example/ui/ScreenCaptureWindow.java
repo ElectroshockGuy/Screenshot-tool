@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -115,12 +115,16 @@ public class ScreenCaptureWindow extends JFrame {
         
         JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
         rectButton.addActionListener(e -> setAnnotationMode(AnnotationMode.RECT));
+        
+        JButton circleButton = createToolButton("○ 圆形", "添加圆形框");
+        circleButton.addActionListener(e -> setAnnotationMode(AnnotationMode.CIRCLE));
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
         toolBar.add(mosaicButton);
         toolBar.add(numberButton);
         toolBar.add(rectButton);
+        toolBar.add(circleButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -414,6 +418,14 @@ public class ScreenCaptureWindow extends JFrame {
             if (w > 5 && h > 5) {
                 annotations.add(new RectAnnotation(new Rectangle(x, y, w, h), annotationColor));
             }
+        } else if (currentMode == AnnotationMode.CIRCLE) {
+            int x = Math.min(annotationStart.x, annotationEnd.x);
+            int y = Math.min(annotationStart.y, annotationEnd.y);
+            int w = Math.abs(annotationEnd.x - annotationStart.x);
+            int h = Math.abs(annotationEnd.y - annotationStart.y);
+            if (w > 5 && h > 5) {
+                annotations.add(new CircleAnnotation(new Rectangle(x, y, w, h), annotationColor));
+            }
         }
         
         annotationStart = null;
@@ -662,6 +674,8 @@ public class ScreenCaptureWindow extends JFrame {
                     drawMosaicPreview(g2d, annotationStart, annotationEnd);
                 } else if (currentMode == AnnotationMode.RECT) {
                     drawRectPreview(g2d, annotationStart, annotationEnd);
+                } else if (currentMode == AnnotationMode.CIRCLE) {
+                    drawCirclePreview(g2d, annotationStart, annotationEnd);
                 }
             }
             
@@ -733,6 +747,20 @@ public class ScreenCaptureWindow extends JFrame {
                 g2d.setColor(annotationColor);
                 g2d.setStroke(new BasicStroke(2));
                 g2d.drawRect(x, y, w, h);
+            }
+        }
+        
+        private void drawCirclePreview(Graphics2D g2d, Point start, Point end) {
+            int x = Math.min(start.x, end.x);
+            int y = Math.min(start.y, end.y);
+            int w = Math.abs(end.x - start.x);
+            int h = Math.abs(end.y - start.y);
+            
+            if (w > 5 && h > 5) {
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setColor(annotationColor);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawOval(x, y, w, h);
             }
         }
         
@@ -1100,6 +1128,54 @@ public class ScreenCaptureWindow extends JFrame {
                                            Math.max(0, rect.width - 2 * tolerance), 
                                            Math.max(0, rect.height - 2 * tolerance));
             return outer.contains(p) && !inner.contains(p);
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            rect.x += dx;
+            rect.y += dy;
+        }
+    }
+
+    /**
+     * 圆形/椭圆标注
+     */
+    private static class CircleAnnotation implements Annotation {
+        private Rectangle rect;
+        private final Color color;
+
+        public CircleAnnotation(Rectangle rect, Color color) {
+            this.rect = new Rectangle(rect);
+            this.color = color;
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setColor(color);
+            g2d.setStroke(new BasicStroke(2));
+            g2d.drawOval(rect.x + offsetX, rect.y + offsetY, rect.width, rect.height);
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            // 检测点是否在椭圆边框附近
+            int tolerance = 10;
+            // 椭圆中心
+            double cx = rect.x + rect.width / 2.0;
+            double cy = rect.y + rect.height / 2.0;
+            double a = rect.width / 2.0;
+            double b = rect.height / 2.0;
+            
+            if (a <= 0 || b <= 0) return false;
+            
+            // 计算点到椭圆的归一化距离
+            double dx = p.x - cx;
+            double dy = p.y - cy;
+            double dist = (dx * dx) / (a * a) + (dy * dy) / (b * b);
+            
+            // 在椭圆边框附近（0.7到1.3之间）
+            return dist >= 0.7 && dist <= 1.3;
         }
         
         @Override
