@@ -149,6 +149,12 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.add(highlightButton);
         toolBar.add(watermarkButton);
         toolBar.add(createSeparator());
+        
+        JButton translateButton = createToolButton("译 翻译", "翻译选区文字");
+        translateButton.addActionListener(e -> translateSelectedArea());
+        toolBar.add(translateButton);
+        
+        toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
         toolBar.add(saveButton);
@@ -1103,6 +1109,67 @@ public class ScreenCaptureWindow extends JFrame {
             // 文字
             g2d.setColor(Color.WHITE);
             g2d.drawString(helpText, x + 10, y + fm.getAscent() + 5);
+        }
+    }
+    
+    /**
+     * 翻译选区文字
+     */
+    private void translateSelectedArea() {
+        // 让用户输入要翻译的文字
+        JPanel inputPanel = new JPanel();
+        inputPanel.setLayout(new BoxLayout(inputPanel, BoxLayout.Y_AXIS));
+        
+        JLabel textLabel = new JLabel("请输入要翻译的文字 (中文→英文，其他→中文):");
+        JTextArea textArea = new JTextArea(3, 30);
+        textArea.setLineWrap(true);
+        textArea.setWrapStyleWord(true);
+        JScrollPane textScroll = new JScrollPane(textArea);
+        
+        inputPanel.add(textLabel);
+        inputPanel.add(Box.createVerticalStrut(5));
+        inputPanel.add(textScroll);
+        
+        int inputResult = JOptionPane.showConfirmDialog(this, inputPanel, "翻译 (微软翻译)", 
+            JOptionPane.OK_CANCEL_OPTION, JOptionPane.PLAIN_MESSAGE);
+        
+        if (inputResult != JOptionPane.OK_OPTION) {
+            return;
+        }
+        
+        String text = textArea.getText();
+        if (text == null || text.trim().isEmpty()) {
+            return;
+        }
+        
+        // 执行翻译
+        try {
+            String result = com.example.service.TranslateService.autoTranslate(text.trim());
+            
+            // 显示翻译结果
+            JTextArea resultArea = new JTextArea(result);
+            resultArea.setEditable(false);
+            resultArea.setLineWrap(true);
+            resultArea.setWrapStyleWord(true);
+            resultArea.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+            
+            JScrollPane scrollPane = new JScrollPane(resultArea);
+            scrollPane.setPreferredSize(new java.awt.Dimension(400, 200));
+            
+            String[] options = {"复制结果", "关闭"};
+            int choice = JOptionPane.showOptionDialog(this, scrollPane, "翻译结果",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.INFORMATION_MESSAGE,
+                null, options, options[0]);
+            
+            if (choice == 0) {
+                // 复制到剪贴板
+                java.awt.datatransfer.StringSelection selection = 
+                    new java.awt.datatransfer.StringSelection(result);
+                Toolkit.getDefaultToolkit().getSystemClipboard().setContents(selection, null);
+                JOptionPane.showMessageDialog(this, "翻译结果已复制到剪贴板", "成功", JOptionPane.INFORMATION_MESSAGE);
+            }
+        } catch (Exception e) {
+            JOptionPane.showMessageDialog(this, "翻译失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
         }
     }
 
