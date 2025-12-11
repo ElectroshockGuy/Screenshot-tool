@@ -44,6 +44,7 @@ public class ScreenCaptureWindow extends JFrame {
     private boolean isDraggingAnnotation = false; // 是否正在拖动标注
     private int nextNumber = 1; // 下一个序号
     private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
+    private java.util.Map<AnnotationMode, JButton> annotationButtons = new java.util.HashMap<>(); // 标注按钮映射
 
     public ScreenCaptureWindow() {
         initWindow();
@@ -104,24 +105,31 @@ public class ScreenCaptureWindow extends JFrame {
         // 标注按钮
         JButton textButton = createToolButton("T 文字", "添加文字标注");
         textButton.addActionListener(e -> setAnnotationMode(AnnotationMode.TEXT));
+        annotationButtons.put(AnnotationMode.TEXT, textButton);
         
         JButton arrowButton = createToolButton("→ 箭头", "添加箭头标注");
         arrowButton.addActionListener(e -> setAnnotationMode(AnnotationMode.ARROW));
+        annotationButtons.put(AnnotationMode.ARROW, arrowButton);
         
         JButton mosaicButton = createToolButton("▦ 马赛克", "添加马赛克");
         mosaicButton.addActionListener(e -> setAnnotationMode(AnnotationMode.MOSAIC));
+        annotationButtons.put(AnnotationMode.MOSAIC, mosaicButton);
         
         JButton numberButton = createToolButton("① 序号", "添加序号标注");
         numberButton.addActionListener(e -> setAnnotationMode(AnnotationMode.NUMBER));
+        annotationButtons.put(AnnotationMode.NUMBER, numberButton);
         
         JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
         rectButton.addActionListener(e -> setAnnotationMode(AnnotationMode.RECT));
+        annotationButtons.put(AnnotationMode.RECT, rectButton);
         
         JButton circleButton = createToolButton("○ 圆形", "添加圆形框");
         circleButton.addActionListener(e -> setAnnotationMode(AnnotationMode.CIRCLE));
+        annotationButtons.put(AnnotationMode.CIRCLE, circleButton);
         
         JButton penButton = createToolButton("✎ 画笔", "自由绘制");
         penButton.addActionListener(e -> setAnnotationMode(AnnotationMode.PEN));
+        annotationButtons.put(AnnotationMode.PEN, penButton);
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
@@ -151,20 +159,33 @@ public class ScreenCaptureWindow extends JFrame {
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setToolTipText(tooltip);
 
-        // 鼠标悬停效果
+        // 鼠标悬停效果（需要考虑选中状态）
         button.addMouseListener(new MouseAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
-                button.setBackground(new Color(80, 80, 80));
+                if (!isButtonSelected(button)) {
+                    button.setBackground(new Color(80, 80, 80));
+                }
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
-                button.setBackground(new Color(60, 60, 60));
+                if (!isButtonSelected(button)) {
+                    button.setBackground(new Color(60, 60, 60));
+                }
             }
         });
 
         return button;
+    }
+    
+    private boolean isButtonSelected(JButton button) {
+        for (java.util.Map.Entry<AnnotationMode, JButton> entry : annotationButtons.entrySet()) {
+            if (entry.getValue() == button && entry.getKey() == currentMode) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private JSeparator createSeparator() {
@@ -217,6 +238,10 @@ public class ScreenCaptureWindow extends JFrame {
 
     private void setAnnotationMode(AnnotationMode mode) {
         this.currentMode = mode;
+        
+        // 更新按钮样式
+        updateButtonStyles();
+        
         if (mode == AnnotationMode.TEXT) {
             // 文字模式：先输入文字，然后点击放置
             String text = JOptionPane.showInputDialog(this, "请输入文字（然后点击选区内位置放置）：", "文字标注", JOptionPane.PLAIN_MESSAGE);
@@ -225,9 +250,24 @@ public class ScreenCaptureWindow extends JFrame {
                 // 保持TEXT模式，等待用户点击放置
             } else {
                 this.currentMode = AnnotationMode.NONE;
+                updateButtonStyles();
             }
         }
         // NUMBER模式不需要特殊处理，直接点击放置即可
+    }
+    
+    private void updateButtonStyles() {
+        Color normalBg = new Color(60, 60, 60);
+        Color selectedBg = new Color(0, 120, 215); // 蓝色高亮
+        
+        for (java.util.Map.Entry<AnnotationMode, JButton> entry : annotationButtons.entrySet()) {
+            JButton btn = entry.getValue();
+            if (entry.getKey() == currentMode) {
+                btn.setBackground(selectedBg);
+            } else {
+                btn.setBackground(normalBg);
+            }
+        }
     }
 
     private void initListeners() {
@@ -310,6 +350,7 @@ public class ScreenCaptureWindow extends JFrame {
                     // 右键取消
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
+                        updateButtonStyles();
                         pendingText = null;
                         repaint();
                     } else if (selectionComplete) {
