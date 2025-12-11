@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -42,6 +42,7 @@ public class ScreenCaptureWindow extends JFrame {
     private Annotation selectedAnnotation = null; // 当前选中的标注
     private Point dragStart = null; // 拖动起始点
     private boolean isDraggingAnnotation = false; // 是否正在拖动标注
+    private int nextNumber = 1; // 下一个序号
 
     public ScreenCaptureWindow() {
         initWindow();
@@ -108,10 +109,14 @@ public class ScreenCaptureWindow extends JFrame {
         
         JButton mosaicButton = createToolButton("▦ 马赛克", "添加马赛克");
         mosaicButton.addActionListener(e -> setAnnotationMode(AnnotationMode.MOSAIC));
+        
+        JButton numberButton = createToolButton("① 序号", "添加序号标注");
+        numberButton.addActionListener(e -> setAnnotationMode(AnnotationMode.NUMBER));
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
         toolBar.add(mosaicButton);
+        toolBar.add(numberButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -209,6 +214,7 @@ public class ScreenCaptureWindow extends JFrame {
                 this.currentMode = AnnotationMode.NONE;
             }
         }
+        // NUMBER模式不需要特殊处理，直接点击放置即可
     }
 
     private void initListeners() {
@@ -228,6 +234,14 @@ public class ScreenCaptureWindow extends JFrame {
                         if (currentMode == AnnotationMode.TEXT && pendingText != null) {
                             annotations.add(new TextAnnotation(p.x, p.y, pendingText, annotationColor));
                             // 保持TEXT模式，可以继续放置同样的文字
+                            repaint();
+                            return;
+                        }
+                        
+                        // 序号模式：点击放置序号（自动递增）
+                        if (currentMode == AnnotationMode.NUMBER) {
+                            annotations.add(new NumberAnnotation(p.x, p.y, nextNumber++, annotationColor));
+                            // 保持NUMBER模式，可以继续放置下一个序号
                             repaint();
                             return;
                         }
@@ -620,6 +634,11 @@ public class ScreenCaptureWindow extends JFrame {
             if (currentMode == AnnotationMode.TEXT && pendingText != null && mousePoint != null && captureRect != null && captureRect.contains(mousePoint)) {
                 drawTextPreview(g2d, mousePoint, pendingText);
             }
+            
+            // 绘制序号放置预览
+            if (currentMode == AnnotationMode.NUMBER && mousePoint != null && captureRect != null && captureRect.contains(mousePoint)) {
+                drawNumberPreview(g2d, mousePoint, nextNumber);
+            }
 
             // 绘制提示信息
             if (!selectionComplete) {
@@ -683,6 +702,31 @@ public class ScreenCaptureWindow extends JFrame {
             g2d.setFont(new Font("微软雅黑", Font.PLAIN, 10));
             g2d.setColor(new Color(255, 255, 255, 200));
             g2d.drawString("点击放置文字", pos.x, pos.y + 20);
+        }
+        
+        private void drawNumberPreview(Graphics2D g2d, Point pos, int number) {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int size = 24;
+            int cx = pos.x;
+            int cy = pos.y;
+            
+            // 半透明圆形背景
+            g2d.setColor(new Color(annotationColor.getRed(), annotationColor.getGreen(), annotationColor.getBlue(), 150));
+            g2d.fillOval(cx - size / 2, cy - size / 2, size, size);
+            
+            // 数字
+            g2d.setColor(new Color(255, 255, 255, 200));
+            g2d.setFont(new Font("Arial", Font.BOLD, 14));
+            FontMetrics fm = g2d.getFontMetrics();
+            String numStr = String.valueOf(number);
+            int textWidth = fm.stringWidth(numStr);
+            g2d.drawString(numStr, cx - textWidth / 2, cy + fm.getAscent() / 2 - 1);
+            
+            // 提示文字
+            g2d.setFont(new Font("微软雅黑", Font.PLAIN, 10));
+            g2d.setColor(new Color(255, 255, 255, 200));
+            g2d.drawString("点击放置序号", cx - 25, cy + size / 2 + 15);
         }
 
         private void drawColorPicker(Graphics2D g2d, int mx, int my) {
@@ -922,6 +966,60 @@ public class ScreenCaptureWindow extends JFrame {
             this.x += dx;
             this.y += dy;
             updateBounds();
+        }
+    }
+
+    /**
+     * 序号标注
+     */
+    private static class NumberAnnotation implements Annotation {
+        private int x, y;
+        private final int number;
+        private final Color color;
+        private static final int SIZE = 24;
+
+        public NumberAnnotation(int x, int y, int number, Color color) {
+            this.x = x;
+            this.y = y;
+            this.number = number;
+            this.color = color;
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            int cx = x + offsetX;
+            int cy = y + offsetY;
+            
+            // 圆形背景
+            g2d.setColor(color);
+            g2d.fillOval(cx - SIZE / 2, cy - SIZE / 2, SIZE, SIZE);
+            
+            // 白色边框
+            g2d.setColor(Color.WHITE);
+            g2d.setStroke(new BasicStroke(1));
+            g2d.drawOval(cx - SIZE / 2, cy - SIZE / 2, SIZE, SIZE);
+            
+            // 数字
+            g2d.setColor(Color.WHITE);
+            g2d.setFont(new Font("Arial", Font.BOLD, 14));
+            FontMetrics fm = g2d.getFontMetrics();
+            String numStr = String.valueOf(number);
+            int textWidth = fm.stringWidth(numStr);
+            g2d.drawString(numStr, cx - textWidth / 2, cy + fm.getAscent() / 2 - 1);
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            double dist = Math.sqrt((p.x - x) * (p.x - x) + (p.y - y) * (p.y - y));
+            return dist <= SIZE / 2 + 3; // 稍微增大点击范围
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            this.x += dx;
+            this.y += dy;
         }
     }
 
