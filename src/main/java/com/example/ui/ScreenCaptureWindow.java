@@ -317,6 +317,7 @@ public class ScreenCaptureWindow extends JFrame {
                         isDraggingAnnotation = false;
                         selectedAnnotation = null;
                         dragStart = null;
+                        capturePanel.setCursor(Cursor.getDefaultCursor());
                         repaint();
                     } else if (isAnnotating) {
                         annotationEnd = e.getPoint();
@@ -336,6 +337,7 @@ public class ScreenCaptureWindow extends JFrame {
             public void mouseDragged(MouseEvent e) {
                 mousePoint = e.getPoint();
                 if (isDraggingAnnotation && selectedAnnotation != null && dragStart != null) {
+                    capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
                     int dx = e.getX() - dragStart.x;
                     int dy = e.getY() - dragStart.y;
                     selectedAnnotation.move(dx, dy);
@@ -353,6 +355,25 @@ public class ScreenCaptureWindow extends JFrame {
             @Override
             public void mouseMoved(MouseEvent e) {
                 mousePoint = e.getPoint();
+                
+                // 检查鼠标是否悬停在标注上，修改鼠标样式
+                if (selectionComplete && currentMode == AnnotationMode.NONE && captureRect != null && captureRect.contains(mousePoint)) {
+                    boolean overAnnotation = false;
+                    for (int i = annotations.size() - 1; i >= 0; i--) {
+                        if (annotations.get(i).contains(mousePoint)) {
+                            overAnnotation = true;
+                            break;
+                        }
+                    }
+                    if (overAnnotation) {
+                        capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                    } else {
+                        capturePanel.setCursor(Cursor.getDefaultCursor());
+                    }
+                } else {
+                    capturePanel.setCursor(Cursor.getDefaultCursor());
+                }
+                
                 repaint();
             }
         });
