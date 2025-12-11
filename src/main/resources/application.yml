@@ -1,0 +1,14 @@
+spring:
+  application:
+    name: springboot-swing
+  main:
+    # 允许在非Web环境下运行
+    web-application-type: none
+    # 允许无头模式关闭（Swing需要GUI）
+    headless: false
+
+# 日志配置
+logging:
+  level:
+    root: INFO
+    com.example: DEBUG

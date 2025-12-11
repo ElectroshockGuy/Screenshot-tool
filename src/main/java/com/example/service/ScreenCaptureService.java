@@ -1,0 +1,97 @@
+package com.example.service;
+
+import com.example.ui.ScreenCaptureWindow;
+import org.springframework.stereotype.Service;
+
+import javax.imageio.ImageIO;
+import javax.swing.*;
+import java.awt.*;
+import java.awt.image.BufferedImage;
+import java.io.File;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+
+/**
+ * 截图服务类 - 提供全屏截图和选区截图功能
+ */
+@Service
+public class ScreenCaptureService {
+
+    /**
+     * 全屏截图
+     */
+    public void captureFullScreen() {
+        try {
+            Robot robot = new Robot();
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            BufferedImage screenImage = robot.createScreenCapture(new Rectangle(screenSize));
+
+            // 保存截图
+            saveImage(screenImage);
+        } catch (AWTException e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null,
+                    "截图失败: " + e.getMessage(),
+                    "错误",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    /**
+     * 选区截图 - 打开选区窗口
+     */
+    public void captureSelectedArea() {
+        // 在EDT线程中打开选区窗口
+        SwingUtilities.invokeLater(() -> {
+            ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
+            captureWindow.setVisible(true);
+        });
+    }
+
+    /**
+     * 保存图片
+     */
+    private void saveImage(BufferedImage image) {
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("保存截图");
+
+        // 默认文件名
+        String defaultName = "screenshot_" + new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".png";
+        fileChooser.setSelectedFile(new File(defaultName));
+
+        // 文件过滤器
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".png");
+            }
+
+            @Override
+            public String getDescription() {
+                return "PNG 图片 (*.png)";
+            }
+        });
+
+        int result = fileChooser.showSaveDialog(null);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".png")) {
+                file = new File(file.getAbsolutePath() + ".png");
+            }
+
+            try {
+                ImageIO.write(image, "PNG", file);
+                JOptionPane.showMessageDialog(null,
+                        "截图已保存到:\n" + file.getAbsolutePath(),
+                        "保存成功",
+                        JOptionPane.INFORMATION_MESSAGE);
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(null,
+                        "保存失败: " + e.getMessage(),
+                        "错误",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
+    }
+}
