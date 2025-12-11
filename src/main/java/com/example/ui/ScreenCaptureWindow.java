@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN, HIGHLIGHT }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -130,6 +130,10 @@ public class ScreenCaptureWindow extends JFrame {
         JButton penButton = createToolButton("✎ 画笔", "自由绘制");
         penButton.addActionListener(e -> setAnnotationMode(AnnotationMode.PEN));
         annotationButtons.put(AnnotationMode.PEN, penButton);
+        
+        JButton highlightButton = createToolButton("▬ 高亮", "添加高亮标记");
+        highlightButton.addActionListener(e -> setAnnotationMode(AnnotationMode.HIGHLIGHT));
+        annotationButtons.put(AnnotationMode.HIGHLIGHT, highlightButton);
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
@@ -138,6 +142,7 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.add(rectButton);
         toolBar.add(circleButton);
         toolBar.add(penButton);
+        toolBar.add(highlightButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -498,6 +503,14 @@ public class ScreenCaptureWindow extends JFrame {
             if (w > 5 && h > 5) {
                 annotations.add(new CircleAnnotation(new Rectangle(x, y, w, h), annotationColor));
             }
+        } else if (currentMode == AnnotationMode.HIGHLIGHT) {
+            int x = Math.min(annotationStart.x, annotationEnd.x);
+            int y = Math.min(annotationStart.y, annotationEnd.y);
+            int w = Math.abs(annotationEnd.x - annotationStart.x);
+            int h = Math.abs(annotationEnd.y - annotationStart.y);
+            if (w > 5 && h > 3) {
+                annotations.add(new HighlightAnnotation(new Rectangle(x, y, w, h)));
+            }
         }
         
         annotationStart = null;
@@ -751,6 +764,8 @@ public class ScreenCaptureWindow extends JFrame {
                         drawRectPreview(g2d, annotationStart, annotationEnd);
                     } else if (currentMode == AnnotationMode.CIRCLE) {
                         drawCirclePreview(g2d, annotationStart, annotationEnd);
+                    } else if (currentMode == AnnotationMode.HIGHLIGHT) {
+                        drawHighlightPreview(g2d, annotationStart, annotationEnd);
                     }
                 }
             }
@@ -849,6 +864,42 @@ public class ScreenCaptureWindow extends JFrame {
                 Point p1 = path.get(i - 1);
                 Point p2 = path.get(i);
                 g2d.drawLine(p1.x, p1.y, p2.x, p2.y);
+            }
+        }
+        
+        private void drawHighlightPreview(Graphics2D g2d, Point start, Point end) {
+            int x = Math.min(start.x, end.x);
+            int y = Math.min(start.y, end.y);
+            int w = Math.abs(end.x - start.x);
+            int h = Math.abs(end.y - start.y);
+            
+            if (w > 5 && h > 3 && captureRect != null) {
+                // 预览：在高亮区域外绘制半透明黑色遮罩
+                g2d.setColor(new Color(0, 0, 0, 100));
+                // 上方
+                if (y > captureRect.y) {
+                    g2d.fillRect(captureRect.x, captureRect.y, captureRect.width, y - captureRect.y);
+                }
+                // 下方
+                int bottomY = y + h;
+                int captureBottom = captureRect.y + captureRect.height;
+                if (bottomY < captureBottom) {
+                    g2d.fillRect(captureRect.x, bottomY, captureRect.width, captureBottom - bottomY);
+                }
+                // 左侧
+                if (x > captureRect.x) {
+                    g2d.fillRect(captureRect.x, y, x - captureRect.x, h);
+                }
+                // 右侧
+                int rightX = x + w;
+                int captureRight = captureRect.x + captureRect.width;
+                if (rightX < captureRight) {
+                    g2d.fillRect(rightX, y, captureRight - rightX, h);
+                }
+                // 边框提示
+                g2d.setColor(new Color(255, 255, 255, 200));
+                g2d.setStroke(new BasicStroke(1));
+                g2d.drawRect(x, y, w, h);
             }
         }
         
@@ -1184,6 +1235,55 @@ public class ScreenCaptureWindow extends JFrame {
         public void move(int dx, int dy) {
             this.x += dx;
             this.y += dy;
+        }
+    }
+
+    /**
+     * 高亮标注（降低其他区域亮度，保持选中区域亮度）
+     */
+    private static class HighlightAnnotation implements Annotation {
+        private Rectangle rect;
+
+        public HighlightAnnotation(Rectangle rect) {
+            this.rect = new Rectangle(rect);
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            // 在高亮区域外绘制半透明黑色遮罩
+            // 上方区域
+            if (rect.y > 0) {
+                g2d.setColor(new Color(0, 0, 0, 100));
+                g2d.fillRect(offsetX, offsetY, screenImage.getWidth(), rect.y);
+            }
+            // 下方区域
+            int bottomY = rect.y + rect.height;
+            if (bottomY < screenImage.getHeight()) {
+                g2d.setColor(new Color(0, 0, 0, 100));
+                g2d.fillRect(offsetX, bottomY + offsetY, screenImage.getWidth(), screenImage.getHeight() - bottomY);
+            }
+            // 左侧区域
+            if (rect.x > 0) {
+                g2d.setColor(new Color(0, 0, 0, 100));
+                g2d.fillRect(offsetX, rect.y + offsetY, rect.x, rect.height);
+            }
+            // 右侧区域
+            int rightX = rect.x + rect.width;
+            if (rightX < screenImage.getWidth()) {
+                g2d.setColor(new Color(0, 0, 0, 100));
+                g2d.fillRect(rightX + offsetX, rect.y + offsetY, screenImage.getWidth() - rightX, rect.height);
+            }
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            return rect.contains(p);
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            rect.x += dx;
+            rect.y += dy;
         }
     }
 
