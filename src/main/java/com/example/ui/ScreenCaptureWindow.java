@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN, HIGHLIGHT }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN, HIGHLIGHT, WATERMARK }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -134,6 +134,10 @@ public class ScreenCaptureWindow extends JFrame {
         JButton highlightButton = createToolButton("▬ 高亮", "添加高亮标记");
         highlightButton.addActionListener(e -> setAnnotationMode(AnnotationMode.HIGHLIGHT));
         annotationButtons.put(AnnotationMode.HIGHLIGHT, highlightButton);
+        
+        JButton watermarkButton = createToolButton("㊊ 水印", "添加水印");
+        watermarkButton.addActionListener(e -> setAnnotationMode(AnnotationMode.WATERMARK));
+        annotationButtons.put(AnnotationMode.WATERMARK, watermarkButton);
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
@@ -143,6 +147,7 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.add(circleButton);
         toolBar.add(penButton);
         toolBar.add(highlightButton);
+        toolBar.add(watermarkButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -253,6 +258,21 @@ public class ScreenCaptureWindow extends JFrame {
             if (text != null && !text.trim().isEmpty()) {
                 pendingText = text;
                 // 保持TEXT模式，等待用户点击放置
+            } else {
+                this.currentMode = AnnotationMode.NONE;
+                updateButtonStyles();
+            }
+        } else if (mode == AnnotationMode.WATERMARK) {
+            // 水印模式：先输入水印文字
+            String text = JOptionPane.showInputDialog(this, "请输入水印文字：", "水印", JOptionPane.PLAIN_MESSAGE);
+            if (text != null && !text.trim().isEmpty()) {
+                // 直接在整个选区添加水印
+                if (captureRect != null) {
+                    annotations.add(new WatermarkAnnotation(captureRect, text));
+                    repaint();
+                }
+                this.currentMode = AnnotationMode.NONE;
+                updateButtonStyles();
             } else {
                 this.currentMode = AnnotationMode.NONE;
                 updateButtonStyles();
@@ -1273,6 +1293,65 @@ public class ScreenCaptureWindow extends JFrame {
                 g2d.setColor(new Color(0, 0, 0, 100));
                 g2d.fillRect(rightX + offsetX, rect.y + offsetY, screenImage.getWidth() - rightX, rect.height);
             }
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            return rect.contains(p);
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            rect.x += dx;
+            rect.y += dy;
+        }
+    }
+
+    /**
+     * 水印标注
+     */
+    private static class WatermarkAnnotation implements Annotation {
+        private Rectangle rect;
+        private final String text;
+
+        public WatermarkAnnotation(Rectangle rect, String text) {
+            this.rect = new Rectangle(rect);
+            this.text = text;
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            Font font = new Font("微软雅黑", Font.BOLD, 20);
+            g2d.setFont(font);
+            FontMetrics fm = g2d.getFontMetrics();
+            int textWidth = fm.stringWidth(text);
+            int textHeight = fm.getHeight();
+            
+            // 设置裁剪区域，只在选区内绘制水印
+            Shape oldClip = g2d.getClip();
+            g2d.setClip(rect.x + offsetX, rect.y + offsetY, rect.width, rect.height);
+            
+            // 半透明灰色水印，斜向平铺
+            g2d.setColor(new Color(128, 128, 128, 60));
+            
+            // 旋转绘制水印
+            java.awt.geom.AffineTransform oldTransform = g2d.getTransform();
+            
+            int spacingX = textWidth + 80;
+            int spacingY = textHeight + 60;
+            
+            for (int y = rect.y - rect.height; y < rect.y + rect.height * 2; y += spacingY) {
+                for (int x = rect.x - rect.width; x < rect.x + rect.width * 2; x += spacingX) {
+                    g2d.translate(x + offsetX, y + offsetY);
+                    g2d.rotate(Math.toRadians(-30));
+                    g2d.drawString(text, 0, 0);
+                    g2d.setTransform(oldTransform);
+                }
+            }
+            
+            // 恢复裁剪区域
+            g2d.setClip(oldClip);
         }
         
         @Override
