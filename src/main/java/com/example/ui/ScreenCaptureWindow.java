@@ -31,7 +31,7 @@ public class ScreenCaptureWindow extends JFrame {
     private CapturePanel capturePanel;
     
     // 标注相关
-    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE }
+    private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN }
     private AnnotationMode currentMode = AnnotationMode.NONE;
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
@@ -43,6 +43,7 @@ public class ScreenCaptureWindow extends JFrame {
     private Point dragStart = null; // 拖动起始点
     private boolean isDraggingAnnotation = false; // 是否正在拖动标注
     private int nextNumber = 1; // 下一个序号
+    private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
 
     public ScreenCaptureWindow() {
         initWindow();
@@ -118,6 +119,9 @@ public class ScreenCaptureWindow extends JFrame {
         
         JButton circleButton = createToolButton("○ 圆形", "添加圆形框");
         circleButton.addActionListener(e -> setAnnotationMode(AnnotationMode.CIRCLE));
+        
+        JButton penButton = createToolButton("✎ 画笔", "自由绘制");
+        penButton.addActionListener(e -> setAnnotationMode(AnnotationMode.PEN));
 
         toolBar.add(textButton);
         toolBar.add(arrowButton);
@@ -125,6 +129,7 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.add(numberButton);
         toolBar.add(rectButton);
         toolBar.add(circleButton);
+        toolBar.add(penButton);
         toolBar.add(createSeparator());
         toolBar.add(pinButton);
         toolBar.add(copyButton);
@@ -254,6 +259,14 @@ public class ScreenCaptureWindow extends JFrame {
                             return;
                         }
                         
+                        // 画笔模式：开始绘制路径
+                        if (currentMode == AnnotationMode.PEN) {
+                            currentPenPath.clear();
+                            currentPenPath.add(p);
+                            isAnnotating = true;
+                            return;
+                        }
+                        
                         annotationStart = p;
                         annotationEnd = p;
                         isAnnotating = true;
@@ -348,7 +361,11 @@ public class ScreenCaptureWindow extends JFrame {
                     dragStart = e.getPoint();
                     repaint();
                 } else if (isAnnotating) {
-                    annotationEnd = e.getPoint();
+                    if (currentMode == AnnotationMode.PEN) {
+                        currentPenPath.add(e.getPoint());
+                    } else {
+                        annotationEnd = e.getPoint();
+                    }
                     repaint();
                 } else if (isSelecting) {
                     endPoint = e.getPoint();
@@ -396,7 +413,21 @@ public class ScreenCaptureWindow extends JFrame {
     }
 
     private void finishAnnotation() {
-        if (annotationStart == null || annotationEnd == null || captureRect == null) {
+        if (captureRect == null) {
+            return;
+        }
+        
+        // 画笔模式单独处理
+        if (currentMode == AnnotationMode.PEN) {
+            if (currentPenPath.size() > 1) {
+                annotations.add(new PenAnnotation(new java.util.ArrayList<>(currentPenPath), annotationColor));
+            }
+            currentPenPath.clear();
+            repaint();
+            return;
+        }
+        
+        if (annotationStart == null || annotationEnd == null) {
             return;
         }
         
@@ -667,15 +698,19 @@ public class ScreenCaptureWindow extends JFrame {
             }
             
             // 绘制正在进行的标注预览
-            if (isAnnotating && annotationStart != null && annotationEnd != null) {
-                if (currentMode == AnnotationMode.ARROW) {
-                    drawArrowPreview(g2d, annotationStart, annotationEnd);
-                } else if (currentMode == AnnotationMode.MOSAIC) {
-                    drawMosaicPreview(g2d, annotationStart, annotationEnd);
-                } else if (currentMode == AnnotationMode.RECT) {
-                    drawRectPreview(g2d, annotationStart, annotationEnd);
-                } else if (currentMode == AnnotationMode.CIRCLE) {
-                    drawCirclePreview(g2d, annotationStart, annotationEnd);
+            if (isAnnotating) {
+                if (currentMode == AnnotationMode.PEN && !currentPenPath.isEmpty()) {
+                    drawPenPreview(g2d, currentPenPath);
+                } else if (annotationStart != null && annotationEnd != null) {
+                    if (currentMode == AnnotationMode.ARROW) {
+                        drawArrowPreview(g2d, annotationStart, annotationEnd);
+                    } else if (currentMode == AnnotationMode.MOSAIC) {
+                        drawMosaicPreview(g2d, annotationStart, annotationEnd);
+                    } else if (currentMode == AnnotationMode.RECT) {
+                        drawRectPreview(g2d, annotationStart, annotationEnd);
+                    } else if (currentMode == AnnotationMode.CIRCLE) {
+                        drawCirclePreview(g2d, annotationStart, annotationEnd);
+                    }
                 }
             }
             
@@ -761,6 +796,18 @@ public class ScreenCaptureWindow extends JFrame {
                 g2d.setColor(annotationColor);
                 g2d.setStroke(new BasicStroke(2));
                 g2d.drawOval(x, y, w, h);
+            }
+        }
+        
+        private void drawPenPreview(Graphics2D g2d, java.util.List<Point> path) {
+            if (path.size() < 2) return;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setColor(annotationColor);
+            g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            for (int i = 1; i < path.size(); i++) {
+                Point p1 = path.get(i - 1);
+                Point p2 = path.get(i);
+                g2d.drawLine(p1.x, p1.y, p2.x, p2.y);
             }
         }
         
@@ -1182,6 +1229,82 @@ public class ScreenCaptureWindow extends JFrame {
         public void move(int dx, int dy) {
             rect.x += dx;
             rect.y += dy;
+        }
+    }
+
+    /**
+     * 画笔标注
+     */
+    private static class PenAnnotation implements Annotation {
+        private java.util.List<Point> path;
+        private final Color color;
+        private Rectangle bounds;
+
+        public PenAnnotation(java.util.List<Point> path, Color color) {
+            this.path = new java.util.ArrayList<>(path);
+            this.color = color;
+            updateBounds();
+        }
+        
+        private void updateBounds() {
+            if (path.isEmpty()) {
+                bounds = new Rectangle(0, 0, 0, 0);
+                return;
+            }
+            int minX = Integer.MAX_VALUE, minY = Integer.MAX_VALUE;
+            int maxX = Integer.MIN_VALUE, maxY = Integer.MIN_VALUE;
+            for (Point p : path) {
+                minX = Math.min(minX, p.x);
+                minY = Math.min(minY, p.y);
+                maxX = Math.max(maxX, p.x);
+                maxY = Math.max(maxY, p.y);
+            }
+            bounds = new Rectangle(minX - 5, minY - 5, maxX - minX + 10, maxY - minY + 10);
+        }
+
+        @Override
+        public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
+            if (path.size() < 2) return;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            g2d.setColor(color);
+            g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            for (int i = 1; i < path.size(); i++) {
+                Point p1 = path.get(i - 1);
+                Point p2 = path.get(i);
+                g2d.drawLine(p1.x + offsetX, p1.y + offsetY, p2.x + offsetX, p2.y + offsetY);
+            }
+        }
+        
+        @Override
+        public boolean contains(Point p) {
+            // 检测点是否在路径附近
+            for (int i = 1; i < path.size(); i++) {
+                Point p1 = path.get(i - 1);
+                Point p2 = path.get(i);
+                double dist = pointToLineDistance(p.x, p.y, p1.x, p1.y, p2.x, p2.y);
+                if (dist < 10) return true;
+            }
+            return false;
+        }
+        
+        private double pointToLineDistance(int px, int py, int x1, int y1, int x2, int y2) {
+            double dx = x2 - x1;
+            double dy = y2 - y1;
+            double len = Math.sqrt(dx * dx + dy * dy);
+            if (len == 0) return Math.sqrt((px - x1) * (px - x1) + (py - y1) * (py - y1));
+            double t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / (len * len)));
+            double projX = x1 + t * dx;
+            double projY = y1 + t * dy;
+            return Math.sqrt((px - projX) * (px - projX) + (py - projY) * (py - projY));
+        }
+        
+        @Override
+        public void move(int dx, int dy) {
+            for (Point p : path) {
+                p.x += dx;
+                p.y += dy;
+            }
+            updateBounds();
         }
     }
 
