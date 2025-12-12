@@ -115,73 +115,73 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.setVisible(false);
 
         // 置顶按钮
-        JButton pinButton = createToolButton("📌 置顶", "将截图置顶显示");
+        JButton pinButton = createToolButton("📌", "置顶显示");
         pinButton.addActionListener(e -> pinToTop());
 
         // 复制按钮
-        JButton copyButton = createToolButton("📋 复制", "复制到剪贴板");
+        JButton copyButton = createToolButton("📋", "复制到剪贴板");
         copyButton.addActionListener(e -> copyToClipboard());
 
         // 保存按钮
-        JButton saveButton = createToolButton("💾 保存", "保存截图");
+        JButton saveButton = createToolButton("💾", "保存截图");
         saveButton.addActionListener(e -> saveImage());
 
         // 取消按钮
-        JButton cancelButton = createToolButton("✖ 取消", "取消截图");
+        JButton cancelButton = createToolButton("✖", "取消截图");
         cancelButton.addActionListener(e -> dispose());
 
         // 标注按钮
-        JButton textButton = createToolButton("T 文字", "添加文字标注");
+        JButton textButton = createToolButton("T", "文字标注");
         textButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.TEXT);
             showTextOptionsPanel(textButton);
         });
         annotationButtons.put(AnnotationMode.TEXT, textButton);
         
-        JButton arrowButton = createToolButton("→ 箭头", "添加箭头标注");
+        JButton arrowButton = createToolButton("→", "箭头标注");
         arrowButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.ARROW);
             showArrowOptionsPanel(arrowButton);
         });
         annotationButtons.put(AnnotationMode.ARROW, arrowButton);
         
-        JButton mosaicButton = createToolButton("▦ 马赛克", "添加马赛克");
+        JButton mosaicButton = createToolButton("▦", "马赛克");
         mosaicButton.addActionListener(e -> setAnnotationMode(AnnotationMode.MOSAIC));
         annotationButtons.put(AnnotationMode.MOSAIC, mosaicButton);
         
-        JButton numberButton = createToolButton("① 序号", "添加序号标注");
+        JButton numberButton = createToolButton("①", "序号标注");
         numberButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.NUMBER);
             showNumberOptionsPanel(numberButton);
         });
         annotationButtons.put(AnnotationMode.NUMBER, numberButton);
         
-        JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
+        JButton rectButton = createToolButton("□", "矩形框");
         rectButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.RECT);
             showShapeOptionsPanel(rectButton);
         });
         annotationButtons.put(AnnotationMode.RECT, rectButton);
         
-        JButton circleButton = createToolButton("○ 圆形", "添加圆形框");
+        JButton circleButton = createToolButton("○", "圆形框");
         circleButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.CIRCLE);
             showShapeOptionsPanel(circleButton);
         });
         annotationButtons.put(AnnotationMode.CIRCLE, circleButton);
         
-        JButton penButton = createToolButton("✎ 画笔", "自由绘制");
+        JButton penButton = createToolButton("✎", "画笔");
         penButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.PEN);
             showShapeOptionsPanel(penButton);
         });
         annotationButtons.put(AnnotationMode.PEN, penButton);
         
-        JButton highlightButton = createToolButton("▬ 高亮", "添加高亮标记");
+        JButton highlightButton = createToolButton("🖍", "高亮标记");
         highlightButton.addActionListener(e -> setAnnotationMode(AnnotationMode.HIGHLIGHT));
         annotationButtons.put(AnnotationMode.HIGHLIGHT, highlightButton);
         
-        JButton watermarkButton = createToolButton("㊊ 水印", "添加水印");
+        JButton watermarkButton = createToolButton("💧", "水印");
         watermarkButton.addActionListener(e -> setAnnotationMode(AnnotationMode.WATERMARK));
         annotationButtons.put(AnnotationMode.WATERMARK, watermarkButton);
 
@@ -196,7 +196,7 @@ public class ScreenCaptureWindow extends JFrame {
         toolBar.add(watermarkButton);
         toolBar.add(createSeparator());
         
-        JButton translateButton = createToolButton("译 翻译", "翻译选区文字");
+        JButton translateButton = createToolButton("🌐", "翻译选区文字");
         translateButton.addActionListener(e -> translateSelectedArea());
         toolBar.add(translateButton);
         
@@ -213,10 +213,10 @@ public class ScreenCaptureWindow extends JFrame {
 
     private JButton createToolButton(String text, String tooltip) {
         JButton button = new JButton(text);
-        button.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+        button.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
         button.setForeground(Color.WHITE);
         button.setBackground(new Color(60, 60, 60));
-        button.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
+        button.setBorder(BorderFactory.createEmptyBorder(6, 10, 6, 10));
         button.setFocusPainted(false);
         button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         button.setToolTipText(tooltip);
