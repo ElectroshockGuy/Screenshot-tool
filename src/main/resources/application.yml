@@ -6,6 +6,7 @@ spring:
     web-application-type: none
     # 允许无头模式关闭（Swing需要GUI）
     headless: false
+    banner-mode: off
 
 # 日志配置
 logging:
