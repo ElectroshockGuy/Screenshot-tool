@@ -27,6 +27,8 @@ public class ScreenCaptureWindow extends JFrame {
     private Rectangle captureRect;
     private boolean isSelecting = false;
     private boolean selectionComplete = false;
+    private double scaleX = 1.0; // X轴缩放比例（用于高DPI适配）
+    private double scaleY = 1.0; // Y轴缩放比例（用于高DPI适配）
     private JPanel toolBar;
     private CapturePanel capturePanel;
     
@@ -82,11 +84,37 @@ public class ScreenCaptureWindow extends JFrame {
     }
 
     private void initWindow() {
-        // 获取全屏截图
+        // 获取全屏截图（处理高DPI缩放）
         try {
             Robot robot = new Robot();
-            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-            screenImage = robot.createScreenCapture(new Rectangle(screenSize));
+            // 获取逻辑分辨率（Toolkit返回的尺寸）
+            Dimension logicalSize = Toolkit.getDefaultToolkit().getScreenSize();
+            
+            // 获取物理分辨率（DisplayMode返回的尺寸）
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice gd = ge.getDefaultScreenDevice();
+            DisplayMode dm = gd.getDisplayMode();
+            int physicalWidth = dm.getWidth();
+            int physicalHeight = dm.getHeight();
+            
+            // 计算缩放比例（如果两者相等，说明JVM已正确处理DPI，比例为1.0）
+            scaleX = (double) physicalWidth / logicalSize.width;
+            scaleY = (double) physicalHeight / logicalSize.height;
+            
+            // 判断是否需要使用物理分辨率截图
+            // 如果缩放比例接近1.0，说明JVM已正确处理DPI（如IDE运行时），使用逻辑分辨率
+            // 如果缩放比例明显不为1.0，说明需要手动处理DPI（如打包后运行），使用物理分辨率
+            boolean needsScaling = Math.abs(scaleX - 1.0) > 0.01 || Math.abs(scaleY - 1.0) > 0.01;
+            
+            if (needsScaling) {
+                // 打包后运行：使用物理分辨率进行截图
+                screenImage = robot.createScreenCapture(new Rectangle(0, 0, physicalWidth, physicalHeight));
+            } else {
+                // IDE运行：使用逻辑分辨率（此时与物理分辨率相同）
+                screenImage = robot.createScreenCapture(new Rectangle(logicalSize));
+                scaleX = 1.0;
+                scaleY = 1.0;
+            }
         } catch (AWTException e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null, "截图失败: " + e.getMessage(), "错误", JOptionPane.ERROR_MESSAGE);
@@ -94,7 +122,7 @@ public class ScreenCaptureWindow extends JFrame {
             return;
         }
 
-        // 设置无边框全屏
+        // 设置无边框全屏（使用逻辑分辨率）
         setUndecorated(true);
         setSize(Toolkit.getDefaultToolkit().getScreenSize());
         setLocationRelativeTo(null);
@@ -1799,7 +1827,20 @@ public class ScreenCaptureWindow extends JFrame {
         }
 
         captureRect = new Rectangle(x, y, width, height);
-        capturedImage = screenImage.getSubimage(x, y, width, height);
+        
+        // 将逻辑坐标转换为物理像素坐标（适配高DPI）
+        int physicalX = (int) (x * scaleX);
+        int physicalY = (int) (y * scaleY);
+        int physicalWidth = (int) (width * scaleX);
+        int physicalHeight = (int) (height * scaleY);
+        
+        // 确保不超出图像边界
+        physicalX = Math.max(0, Math.min(physicalX, screenImage.getWidth() - 1));
+        physicalY = Math.max(0, Math.min(physicalY, screenImage.getHeight() - 1));
+        physicalWidth = Math.min(physicalWidth, screenImage.getWidth() - physicalX);
+        physicalHeight = Math.min(physicalHeight, screenImage.getHeight() - physicalY);
+        
+        capturedImage = screenImage.getSubimage(physicalX, physicalY, physicalWidth, physicalHeight);
         selectionComplete = true;
 
         // 显示工具栏
@@ -1880,8 +1921,9 @@ public class ScreenCaptureWindow extends JFrame {
     private void copyColorToClipboard() {
         if (mousePoint == null || screenImage == null) return;
 
-        int mx = mousePoint.x;
-        int my = mousePoint.y;
+        // 将逻辑坐标转换为物理像素坐标（适配高DPI）
+        int mx = (int) (mousePoint.x * scaleX);
+        int my = (int) (mousePoint.y * scaleY);
 
         if (mx < 0 || my < 0 || mx >= screenImage.getWidth() || my >= screenImage.getHeight()) {
             return;
@@ -1991,9 +2033,13 @@ public class ScreenCaptureWindow extends JFrame {
         protected void paintComponent(Graphics g) {
             super.paintComponent(g);
             Graphics2D g2d = (Graphics2D) g.create();
+            
+            // 启用高质量渲染
+            g2d.setRenderingHint(RenderingHints.KEY_INTERPOLATION, RenderingHints.VALUE_INTERPOLATION_BILINEAR);
+            g2d.setRenderingHint(RenderingHints.KEY_RENDERING, RenderingHints.VALUE_RENDER_QUALITY);
 
-            // 绘制原始屏幕截图（1:1像素绘制，不缩放）
-            g2d.drawImage(screenImage, 0, 0, null);
+            // 绘制原始屏幕截图（缩放到窗口大小以适配高DPI）
+            g2d.drawImage(screenImage, 0, 0, getWidth(), getHeight(), null);
 
             // 绘制半透明遮罩
             g2d.setColor(new Color(0, 0, 0, 100));
@@ -2010,7 +2056,7 @@ public class ScreenCaptureWindow extends JFrame {
                     // 使用clip方式显示选区原图，避免getSubimage可能的质量损失
                     Shape oldClip = g2d.getClip();
                     g2d.setClip(x, y, width, height);
-                    g2d.drawImage(screenImage, 0, 0, null);
+                    g2d.drawImage(screenImage, 0, 0, getWidth(), getHeight(), null);
                     g2d.setClip(oldClip);
 
                     // 绘制选区边框
@@ -2247,13 +2293,17 @@ public class ScreenCaptureWindow extends JFrame {
         }
 
         private void drawColorPicker(Graphics2D g2d, int mx, int my) {
+            // 将逻辑坐标转换为物理像素坐标（适配高DPI）
+            int physicalMx = (int) (mx * scaleX);
+            int physicalMy = (int) (my * scaleY);
+            
             // 确保坐标在屏幕范围内
-            if (mx < 0 || my < 0 || mx >= screenImage.getWidth() || my >= screenImage.getHeight()) {
+            if (physicalMx < 0 || physicalMy < 0 || physicalMx >= screenImage.getWidth() || physicalMy >= screenImage.getHeight()) {
                 return;
             }
 
             // 获取当前像素颜色
-            int rgb = screenImage.getRGB(mx, my);
+            int rgb = screenImage.getRGB(physicalMx, physicalMy);
             Color color = new Color(rgb);
             String hexColor = String.format("#%02X%02X%02X", color.getRed(), color.getGreen(), color.getBlue());
             String rgbColor = String.format("RGB(%d,%d,%d)", color.getRed(), color.getGreen(), color.getBlue());
@@ -2287,8 +2337,8 @@ public class ScreenCaptureWindow extends JFrame {
             // 绘制放大的像素网格
             for (int dy = -halfGrid; dy <= halfGrid; dy++) {
                 for (int dx = -halfGrid; dx <= halfGrid; dx++) {
-                    int px = mx + dx;
-                    int py = my + dy;
+                    int px = physicalMx + dx;
+                    int py = physicalMy + dy;
 
                     // 获取像素颜色
                     Color pixelColor;
@@ -3171,11 +3221,17 @@ public class ScreenCaptureWindow extends JFrame {
             int drawX = rect.x + offsetX;
             int drawY = rect.y + offsetY;
             
+            // 计算缩放比例（适配高DPI）
+            Dimension logicalSize = Toolkit.getDefaultToolkit().getScreenSize();
+            double scaleX = (double) screenImage.getWidth() / logicalSize.width;
+            double scaleY = (double) screenImage.getHeight() / logicalSize.height;
+            
             // 对区域进行马赛克处理
             for (int by = 0; by < rect.height; by += BLOCK_SIZE) {
                 for (int bx = 0; bx < rect.width; bx += BLOCK_SIZE) {
-                    int imgX = rect.x + bx;
-                    int imgY = rect.y + by;
+                    // 将逻辑坐标转换为物理像素坐标
+                    int imgX = (int) ((rect.x + bx) * scaleX);
+                    int imgY = (int) ((rect.y + by) * scaleY);
                     
                     // 确保在图片范围内
                     if (imgX >= 0 && imgY >= 0 && imgX < screenImage.getWidth() && imgY < screenImage.getHeight()) {

@@ -23,8 +23,25 @@ public class ScreenCaptureService {
     public void captureFullScreen() {
         try {
             Robot robot = new Robot();
-            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
-            BufferedImage screenImage = robot.createScreenCapture(new Rectangle(screenSize));
+            // 获取逻辑分辨率和物理分辨率
+            Dimension logicalSize = Toolkit.getDefaultToolkit().getScreenSize();
+            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
+            GraphicsDevice gd = ge.getDefaultScreenDevice();
+            DisplayMode dm = gd.getDisplayMode();
+            int physicalWidth = dm.getWidth();
+            int physicalHeight = dm.getHeight();
+            
+            // 判断是否需要使用物理分辨率（适配高DPI）
+            double scaleX = (double) physicalWidth / logicalSize.width;
+            double scaleY = (double) physicalHeight / logicalSize.height;
+            boolean needsScaling = Math.abs(scaleX - 1.0) > 0.01 || Math.abs(scaleY - 1.0) > 0.01;
+            
+            BufferedImage screenImage;
+            if (needsScaling) {
+                screenImage = robot.createScreenCapture(new Rectangle(0, 0, physicalWidth, physicalHeight));
+            } else {
+                screenImage = robot.createScreenCapture(new Rectangle(logicalSize));
+            }
 
             // 保存截图
             saveImage(screenImage);
