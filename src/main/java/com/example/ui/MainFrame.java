@@ -15,6 +15,7 @@ import org.springframework.stereotype.Component;
 import javax.annotation.PostConstruct;
 import javax.swing.*;
 import java.awt.*;
+import java.net.URL;
 
 /**
  * Swing主窗口 - 作为Spring Bean管理，可以注入其他Spring组件
@@ -43,6 +44,13 @@ public class MainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setSize(500, 520);
         setLocationRelativeTo(null); // 居中显示
+
+        // 设置窗口图标
+        URL iconUrl = getClass().getResource("/png/jtpng.png");
+        if (iconUrl != null) {
+            Image icon = Toolkit.getDefaultToolkit().getImage(iconUrl);
+            setIconImage(icon);
+        }
 
         // 创建菜单栏
         initMenuBar();

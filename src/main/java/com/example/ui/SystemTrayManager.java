@@ -5,6 +5,7 @@ import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
+import java.net.URL;
 
 /**
  * 系统托盘管理器
@@ -36,7 +37,7 @@ public class SystemTrayManager {
     
     private void initTrayIcon() {
         // 创建托盘图标
-        Image icon = createTrayIconImage();
+        Image icon = loadTrayIconImage();
         
         // 创建 JDialog 作为 JPopupMenu 的载体
         popupDialog = new JDialog();
@@ -166,9 +167,21 @@ public class SystemTrayManager {
     }
     
     /**
-     * 创建托盘图标图像
+     * 加载托盘图标图像
      */
-    private Image createTrayIconImage() {
+    private Image loadTrayIconImage() {
+        URL iconUrl = getClass().getResource("/png/jtpng.png");
+        if (iconUrl != null) {
+            return Toolkit.getDefaultToolkit().getImage(iconUrl);
+        }
+        // 加载失败时使用默认图标
+        return createDefaultTrayIconImage();
+    }
+    
+    /**
+     * 创建默认托盘图标图像
+     */
+    private Image createDefaultTrayIconImage() {
         int size = 16;
         BufferedImage image = new BufferedImage(size, size, BufferedImage.TYPE_INT_ARGB);
         Graphics2D g2d = image.createGraphics();
