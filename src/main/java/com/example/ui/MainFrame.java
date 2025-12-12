@@ -249,7 +249,7 @@ public class MainFrame extends JFrame {
         shortcutPanel.setOpaque(false);
         shortcutPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
-        JLabel shortcutTitle = new JLabel("快捷键");
+        JLabel shortcutTitle = new JLabel("⌨️ 快捷键");
         shortcutTitle.setFont(new Font("微软雅黑", Font.BOLD, 11));
         shortcutTitle.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
 
@@ -282,7 +282,7 @@ public class MainFrame extends JFrame {
         centerPanel.add(Box.createVerticalGlue());
 
         // 底部状态栏
-        JLabel statusLabel = new JLabel("提示：程序最小化后可通过系统托盘访问");
+        JLabel statusLabel = new JLabel("💡 提示：程序最小化后可通过系统托盘访问");
         statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
         statusLabel.setForeground(new Color(150, 150, 150));
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);
