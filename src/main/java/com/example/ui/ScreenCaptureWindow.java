@@ -58,6 +58,8 @@ public class ScreenCaptureWindow extends JFrame {
     private JPanel strokePanel; // 粗细选择面板
     private JPanel arrowOptionsPanel; // 箭头选项综合面板
     private JPanel textOptionsPanel; // 文字选项综合面板
+    private JPanel shapeOptionsPanel; // 形状选项综合面板（矩形、圆形、画笔）
+    private int currentShapeStroke = 2; // 当前形状粗细
     private static final Color[] PRESET_COLORS = {
         new Color(255, 0, 0),      // 红色
         new Color(255, 165, 0),    // 橙色
@@ -150,15 +152,24 @@ public class ScreenCaptureWindow extends JFrame {
         annotationButtons.put(AnnotationMode.NUMBER, numberButton);
         
         JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
-        rectButton.addActionListener(e -> setAnnotationMode(AnnotationMode.RECT));
+        rectButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.RECT);
+            showShapeOptionsPanel(rectButton);
+        });
         annotationButtons.put(AnnotationMode.RECT, rectButton);
         
         JButton circleButton = createToolButton("○ 圆形", "添加圆形框");
-        circleButton.addActionListener(e -> setAnnotationMode(AnnotationMode.CIRCLE));
+        circleButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.CIRCLE);
+            showShapeOptionsPanel(circleButton);
+        });
         annotationButtons.put(AnnotationMode.CIRCLE, circleButton);
         
         JButton penButton = createToolButton("✎ 画笔", "自由绘制");
-        penButton.addActionListener(e -> setAnnotationMode(AnnotationMode.PEN));
+        penButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.PEN);
+            showShapeOptionsPanel(penButton);
+        });
         annotationButtons.put(AnnotationMode.PEN, penButton);
         
         JButton highlightButton = createToolButton("▬ 高亮", "添加高亮标记");
@@ -863,6 +874,176 @@ public class ScreenCaptureWindow extends JFrame {
         }
     }
     
+    private void createShapeOptionsPanel() {
+        shapeOptionsPanel = new JPanel();
+        shapeOptionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        shapeOptionsPanel.setBackground(new Color(45, 45, 45));
+        shapeOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(70, 70, 70), 1),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)
+        ));
+        shapeOptionsPanel.setVisible(false);
+        
+        // 粗细滑块区域
+        JPanel strokeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        strokeSection.setBackground(new Color(45, 45, 45));
+        
+        // 自定义粗细滑块
+        JPanel customSlider = new JPanel() {
+            private int sliderValue = currentShapeStroke;
+            private boolean isDragging = false;
+            
+            {
+                setPreferredSize(new Dimension(100, 24));
+                setBackground(new Color(45, 45, 45));
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                
+                addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mousePressed(java.awt.event.MouseEvent e) {
+                        isDragging = true;
+                        updateValue(e.getX());
+                    }
+                    @Override
+                    public void mouseReleased(java.awt.event.MouseEvent e) {
+                        isDragging = false;
+                    }
+                });
+                
+                addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+                    @Override
+                    public void mouseDragged(java.awt.event.MouseEvent e) {
+                        if (isDragging) {
+                            updateValue(e.getX());
+                        }
+                    }
+                });
+            }
+            
+            private void updateValue(int x) {
+                int trackStart = 20;
+                int trackEnd = getWidth() - 20;
+                int trackWidth = trackEnd - trackStart;
+                
+                double ratio = (double)(x - trackStart) / trackWidth;
+                ratio = Math.max(0, Math.min(1, ratio));
+                sliderValue = 1 + (int)(ratio * 4);
+                currentShapeStroke = sliderValue;
+                repaint();
+                ScreenCaptureWindow.this.repaint();
+            }
+            
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int h = getHeight();
+                int w = getWidth();
+                int trackStart = 20;
+                int trackEnd = w - 20;
+                int trackWidth = trackEnd - trackStart;
+                
+                g2d.setColor(annotationColor);
+                g2d.fillOval(4, (h - 8) / 2, 8, 8);
+                g2d.fillOval(w - 16, (h - 14) / 2, 14, 14);
+                
+                g2d.setColor(new Color(80, 80, 80));
+                g2d.fillRoundRect(trackStart, h / 2 - 2, trackWidth, 4, 4, 4);
+                
+                double ratio = (sliderValue - 1) / 4.0;
+                int thumbX = trackStart + (int)(ratio * trackWidth);
+                
+                g2d.setColor(annotationColor);
+                g2d.fillRoundRect(trackStart, h / 2 - 2, thumbX - trackStart, 4, 4, 4);
+                g2d.fillOval(thumbX - 6, h / 2 - 6, 12, 12);
+                g2d.setColor(Color.WHITE);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawOval(thumbX - 6, h / 2 - 6, 12, 12);
+            }
+        };
+        strokeSection.add(customSlider);
+        shapeOptionsPanel.add(strokeSection);
+        
+        // 分隔线
+        JSeparator sep = new JSeparator(SwingConstants.VERTICAL);
+        sep.setPreferredSize(new Dimension(1, 20));
+        sep.setForeground(new Color(80, 80, 80));
+        shapeOptionsPanel.add(sep);
+        
+        // 颜色选择区域
+        Color[] colors = {
+            new Color(255, 59, 48),
+            new Color(255, 204, 0),
+            new Color(52, 199, 89),
+            new Color(0, 122, 255),
+            Color.WHITE,
+            new Color(142, 142, 147),
+            Color.BLACK
+        };
+        
+        for (Color color : colors) {
+            JButton colorBtn = new JButton() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    
+                    if (annotationColor.equals(color)) {
+                        g2d.setColor(new Color(0, 122, 255));
+                        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(3, 3, getWidth() - 6, getHeight() - 6, 4, 4);
+                    } else {
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
+                    }
+                }
+            };
+            colorBtn.setPreferredSize(new Dimension(30, 26));
+            colorBtn.setBackground(new Color(45, 45, 45));
+            colorBtn.setBorder(BorderFactory.createEmptyBorder());
+            colorBtn.setFocusPainted(false);
+            colorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            colorBtn.addActionListener(e -> {
+                annotationColor = color;
+                repaintAllComponents(shapeOptionsPanel);
+                repaint();
+            });
+            shapeOptionsPanel.add(colorBtn);
+        }
+        
+        capturePanel.add(shapeOptionsPanel);
+    }
+    
+    private void showShapeOptionsPanel(JButton button) {
+        if (shapeOptionsPanel == null) {
+            createShapeOptionsPanel();
+        }
+        
+        Dimension panelSize = shapeOptionsPanel.getPreferredSize();
+        Point btnLoc = button.getLocationOnScreen();
+        Point panelLoc = capturePanel.getLocationOnScreen();
+        int x = btnLoc.x - panelLoc.x;
+        int y = btnLoc.y - panelLoc.y - panelSize.height - 5;
+        
+        if (y < 0) {
+            y = btnLoc.y - panelLoc.y + button.getHeight() + 5;
+        }
+        
+        shapeOptionsPanel.setBounds(x, y, panelSize.width, panelSize.height);
+        shapeOptionsPanel.setVisible(true);
+        shapeOptionsPanel.repaint();
+    }
+    
+    private void hideShapeOptionsPanel() {
+        if (shapeOptionsPanel != null && shapeOptionsPanel.isVisible()) {
+            shapeOptionsPanel.setVisible(false);
+        }
+    }
+    
     private void repaintAllComponents(java.awt.Container container) {
         container.repaint();
         for (java.awt.Component comp : container.getComponents()) {
@@ -989,6 +1170,10 @@ public class ScreenCaptureWindow extends JFrame {
         // 切换到非文字模式时隐藏文字选项面板
         if (mode != AnnotationMode.TEXT) {
             hideTextOptionsPanel();
+        }
+        // 切换到非形状模式时隐藏形状选项面板
+        if (mode != AnnotationMode.RECT && mode != AnnotationMode.CIRCLE && mode != AnnotationMode.PEN) {
+            hideShapeOptionsPanel();
         }
         
         // 更新按钮样式
@@ -1161,6 +1346,7 @@ public class ScreenCaptureWindow extends JFrame {
                     // 右键取消
                     hideArrowOptionsPanel();
                     hideTextOptionsPanel();
+                    hideShapeOptionsPanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
@@ -1318,7 +1504,7 @@ public class ScreenCaptureWindow extends JFrame {
         // 画笔模式单独处理
         if (currentMode == AnnotationMode.PEN) {
             if (currentPenPath.size() > 1) {
-                annotations.add(new PenAnnotation(new java.util.ArrayList<>(currentPenPath), annotationColor));
+                annotations.add(new PenAnnotation(new java.util.ArrayList<>(currentPenPath), annotationColor, currentShapeStroke));
             }
             currentPenPath.clear();
             repaint();
@@ -1345,7 +1531,7 @@ public class ScreenCaptureWindow extends JFrame {
             int w = Math.abs(annotationEnd.x - annotationStart.x);
             int h = Math.abs(annotationEnd.y - annotationStart.y);
             if (w > 5 && h > 5) {
-                annotations.add(new RectAnnotation(new Rectangle(x, y, w, h), annotationColor));
+                annotations.add(new RectAnnotation(new Rectangle(x, y, w, h), annotationColor, currentShapeStroke));
             }
         } else if (currentMode == AnnotationMode.CIRCLE) {
             int x = Math.min(annotationStart.x, annotationEnd.x);
@@ -1353,7 +1539,7 @@ public class ScreenCaptureWindow extends JFrame {
             int w = Math.abs(annotationEnd.x - annotationStart.x);
             int h = Math.abs(annotationEnd.y - annotationStart.y);
             if (w > 5 && h > 5) {
-                annotations.add(new CircleAnnotation(new Rectangle(x, y, w, h), annotationColor));
+                annotations.add(new CircleAnnotation(new Rectangle(x, y, w, h), annotationColor, currentShapeStroke));
             }
         } else if (currentMode == AnnotationMode.HIGHLIGHT) {
             int x = Math.min(annotationStart.x, annotationEnd.x);
@@ -2285,16 +2471,18 @@ public class ScreenCaptureWindow extends JFrame {
     private static class RectAnnotation implements Annotation {
         private Rectangle rect;
         private final Color color;
+        private final int strokeWidth;
 
-        public RectAnnotation(Rectangle rect, Color color) {
+        public RectAnnotation(Rectangle rect, Color color, int strokeWidth) {
             this.rect = new Rectangle(rect);
             this.color = color;
+            this.strokeWidth = strokeWidth;
         }
 
         @Override
         public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
             g2d.setColor(color);
-            g2d.setStroke(new BasicStroke(2));
+            g2d.setStroke(new BasicStroke(strokeWidth));
             g2d.drawRect(rect.x + offsetX, rect.y + offsetY, rect.width, rect.height);
         }
         
@@ -2323,17 +2511,19 @@ public class ScreenCaptureWindow extends JFrame {
     private static class CircleAnnotation implements Annotation {
         private Rectangle rect;
         private final Color color;
+        private final int strokeWidth;
 
-        public CircleAnnotation(Rectangle rect, Color color) {
+        public CircleAnnotation(Rectangle rect, Color color, int strokeWidth) {
             this.rect = new Rectangle(rect);
             this.color = color;
+            this.strokeWidth = strokeWidth;
         }
 
         @Override
         public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setColor(color);
-            g2d.setStroke(new BasicStroke(2));
+            g2d.setStroke(new BasicStroke(strokeWidth));
             g2d.drawOval(rect.x + offsetX, rect.y + offsetY, rect.width, rect.height);
         }
         
@@ -2371,11 +2561,13 @@ public class ScreenCaptureWindow extends JFrame {
     private static class PenAnnotation implements Annotation {
         private java.util.List<Point> path;
         private final Color color;
+        private final int strokeWidth;
         private Rectangle bounds;
 
-        public PenAnnotation(java.util.List<Point> path, Color color) {
+        public PenAnnotation(java.util.List<Point> path, Color color, int strokeWidth) {
             this.path = new java.util.ArrayList<>(path);
             this.color = color;
+            this.strokeWidth = strokeWidth;
             updateBounds();
         }
         
@@ -2400,7 +2592,7 @@ public class ScreenCaptureWindow extends JFrame {
             if (path.size() < 2) return;
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setColor(color);
-            g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            g2d.setStroke(new BasicStroke(strokeWidth, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
             for (int i = 1; i < path.size(); i++) {
                 Point p1 = path.get(i - 1);
                 Point p2 = path.get(i);
