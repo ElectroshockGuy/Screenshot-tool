@@ -472,46 +472,92 @@ public class ScreenCaptureWindow extends JFrame {
         JPanel strokeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         strokeSection.setBackground(new Color(45, 45, 45));
         
-        // 小圆点指示器（显示当前颜色）
-        JPanel dotIndicator = new JPanel() {
+        // 自定义粗细滑块（支持颜色变化）
+        JPanel customSlider = new JPanel() {
+            private int sliderValue = currentArrowStroke;
+            private boolean isDragging = false;
+            
+            {
+                setPreferredSize(new Dimension(100, 24));
+                setBackground(new Color(45, 45, 45));
+                setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                
+                addMouseListener(new java.awt.event.MouseAdapter() {
+                    @Override
+                    public void mousePressed(java.awt.event.MouseEvent e) {
+                        isDragging = true;
+                        updateValue(e.getX());
+                    }
+                    @Override
+                    public void mouseReleased(java.awt.event.MouseEvent e) {
+                        isDragging = false;
+                    }
+                });
+                
+                addMouseMotionListener(new java.awt.event.MouseMotionAdapter() {
+                    @Override
+                    public void mouseDragged(java.awt.event.MouseEvent e) {
+                        if (isDragging) {
+                            updateValue(e.getX());
+                        }
+                    }
+                });
+            }
+            
+            private void updateValue(int x) {
+                int trackStart = 20;
+                int trackEnd = getWidth() - 20;
+                int trackWidth = trackEnd - trackStart;
+                
+                double ratio = (double)(x - trackStart) / trackWidth;
+                ratio = Math.max(0, Math.min(1, ratio));
+                sliderValue = 1 + (int)(ratio * 4);
+                currentArrowStroke = sliderValue;
+                repaint();
+                ScreenCaptureWindow.this.repaint();
+            }
+            
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                int h = getHeight();
+                int w = getWidth();
+                int trackStart = 20;
+                int trackEnd = w - 20;
+                int trackWidth = trackEnd - trackStart;
+                
+                // 左侧小圆点（显示当前颜色）
                 g2d.setColor(annotationColor);
-                g2d.fillOval(2, (getHeight() - 8) / 2, 8, 8);
+                g2d.fillOval(4, (h - 8) / 2, 8, 8);
+                
+                // 右侧大圆点（显示当前颜色）
+                g2d.setColor(annotationColor);
+                g2d.fillOval(w - 16, (h - 14) / 2, 14, 14);
+                
+                // 轨道背景
+                g2d.setColor(new Color(80, 80, 80));
+                g2d.fillRoundRect(trackStart, h / 2 - 2, trackWidth, 4, 4, 4);
+                
+                // 计算滑块位置
+                double ratio = (sliderValue - 1) / 4.0;
+                int thumbX = trackStart + (int)(ratio * trackWidth);
+                
+                // 已选择部分轨道（使用当前颜色）
+                g2d.setColor(annotationColor);
+                g2d.fillRoundRect(trackStart, h / 2 - 2, thumbX - trackStart, 4, 4, 4);
+                
+                // 滑块圆形（使用当前颜色）
+                g2d.setColor(annotationColor);
+                g2d.fillOval(thumbX - 6, h / 2 - 6, 12, 12);
+                g2d.setColor(Color.WHITE);
+                g2d.setStroke(new BasicStroke(2));
+                g2d.drawOval(thumbX - 6, h / 2 - 6, 12, 12);
             }
         };
-        dotIndicator.setPreferredSize(new Dimension(12, 24));
-        dotIndicator.setBackground(new Color(45, 45, 45));
-        strokeSection.add(dotIndicator);
-        
-        // 粗细滑块
-        JSlider strokeSlider = new JSlider(1, 5, currentArrowStroke);
-        strokeSlider.setPreferredSize(new Dimension(60, 24));
-        strokeSlider.setBackground(new Color(45, 45, 45));
-        strokeSlider.setForeground(new Color(0, 122, 255));
-        strokeSlider.addChangeListener(e -> {
-            currentArrowStroke = strokeSlider.getValue();
-            repaint();
-        });
-        strokeSection.add(strokeSlider);
-        
-        // 大圆点指示器（显示当前颜色）
-        JPanel bigDotIndicator = new JPanel() {
-            @Override
-            protected void paintComponent(Graphics g) {
-                super.paintComponent(g);
-                Graphics2D g2d = (Graphics2D) g;
-                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2d.setColor(annotationColor);
-                g2d.fillOval(2, (getHeight() - 14) / 2, 14, 14);
-            }
-        };
-        bigDotIndicator.setPreferredSize(new Dimension(18, 24));
-        bigDotIndicator.setBackground(new Color(45, 45, 45));
-        strokeSection.add(bigDotIndicator);
+        strokeSection.add(customSlider);
         
         arrowOptionsPanel.add(strokeSection);
         
