@@ -344,6 +344,12 @@ public class ScreenCaptureWindow extends JFrame {
         colorPanel.setVisible(true);
         colorPanel.repaint();
     }
+    
+    private void hideColorPanel() {
+        if (colorPanel != null && colorPanel.isVisible()) {
+            colorPanel.setVisible(false);
+        }
+    }
 
     private void showToolBar() {
         if (captureRect == null) return;
@@ -388,6 +394,11 @@ public class ScreenCaptureWindow extends JFrame {
 
     private void setAnnotationMode(AnnotationMode mode) {
         this.currentMode = mode;
+        
+        // 切换到非箭头模式时隐藏颜色面板
+        if (mode != AnnotationMode.ARROW) {
+            hideColorPanel();
+        }
         
         // 更新按钮样式
         updateButtonStyles();
@@ -557,6 +568,7 @@ public class ScreenCaptureWindow extends JFrame {
                     isSelecting = true;
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
                     // 右键取消
+                    hideColorPanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
