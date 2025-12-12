@@ -51,6 +51,11 @@ public class ScreenCaptureWindow extends JFrame {
     private Point dragStart = null; // 拖动起始点
     private boolean isDraggingAnnotation = false; // 是否正在拖动标注
     private int activeHandle = -1; // 当前激活的控制手柄 (-1=无, 0=旋转, 1=缩放起点, 2=缩放终点)
+    
+    // 选区调整相关
+    private boolean isResizingSelection = false; // 是否正在调整选区大小
+    private int resizeHandle = -1; // 当前调整的手柄 (0-7: 8个方向)
+    private static final int HANDLE_SIZE = 8; // 调整手柄大小
     private double lastRotateAngle = 0; // 上一次旋转角度
     private int nextNumber = 1; // 下一个序号
     private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
@@ -1520,6 +1525,14 @@ public class ScreenCaptureWindow extends JFrame {
                             return;
                         }
                         
+                        // 检查是否点击了选区调整手柄
+                        int selHandle = getSelectionHandleAt(p);
+                        if (selHandle >= 0) {
+                            isResizingSelection = true;
+                            resizeHandle = selHandle;
+                            return;
+                        }
+                        
                         // 检查是否点击了已选中标注的控制手柄（旋转/缩放）
                         if (captureRect != null && captureRect.contains(p) && currentMode == AnnotationMode.NONE) {
                             // 先检查已选中标注的控制手柄
@@ -1606,7 +1619,13 @@ public class ScreenCaptureWindow extends JFrame {
             @Override
             public void mouseReleased(MouseEvent e) {
                 if (e.getButton() == MouseEvent.BUTTON1) {
-                    if (isDraggingAnnotation) {
+                    if (isResizingSelection) {
+                        isResizingSelection = false;
+                        resizeHandle = -1;
+                        capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+                        showToolBar(); // 更新工具栏位置
+                        repaint();
+                    } else if (isDraggingAnnotation) {
                         isDraggingAnnotation = false;
                         activeHandle = -1;
                         dragStart = null;
@@ -1649,6 +1668,15 @@ public class ScreenCaptureWindow extends JFrame {
             @Override
             public void mouseDragged(MouseEvent e) {
                 mousePoint = e.getPoint();
+                
+                // 选区调整拖拽
+                if (isResizingSelection && resizeHandle >= 0) {
+                    capturePanel.setCursor(getResizeCursor(resizeHandle));
+                    resizeSelection(resizeHandle, e.getPoint());
+                    repaint();
+                    return;
+                }
+                
                 if (isDraggingAnnotation && selectedAnnotation != null && dragStart != null) {
                     if (activeHandle == 0) {
                         // 旋转操作
@@ -1687,6 +1715,16 @@ public class ScreenCaptureWindow extends JFrame {
             @Override
             public void mouseMoved(MouseEvent e) {
                 mousePoint = e.getPoint();
+                
+                // 检查是否悬停在选区调整手柄上
+                if (selectionComplete) {
+                    int selHandle = getSelectionHandleAt(mousePoint);
+                    if (selHandle >= 0) {
+                        capturePanel.setCursor(getResizeCursor(selHandle));
+                        repaint();
+                        return;
+                    }
+                }
                 
                 // 检查鼠标是否悬停在标注上，修改鼠标样式
                 if (selectionComplete && currentMode == AnnotationMode.NONE && captureRect != null && captureRect.contains(mousePoint)) {
@@ -1846,6 +1884,137 @@ public class ScreenCaptureWindow extends JFrame {
         // 显示工具栏
         showToolBar();
         repaint();
+    }
+
+    /**
+     * 检测鼠标是否在选区调整手柄上
+     * @return 手柄索引 (0-7)，-1表示不在任何手柄上
+     * 0=左上, 1=上中, 2=右上, 3=右中, 4=右下, 5=下中, 6=左下, 7=左中
+     */
+    private int getSelectionHandleAt(Point p) {
+        if (captureRect == null || !selectionComplete) return -1;
+        
+        int x = captureRect.x;
+        int y = captureRect.y;
+        int w = captureRect.width;
+        int h = captureRect.height;
+        int hs = HANDLE_SIZE;
+        
+        // 8个手柄的位置
+        Rectangle[] handles = {
+            new Rectangle(x - hs/2, y - hs/2, hs, hs),                    // 0: 左上
+            new Rectangle(x + w/2 - hs/2, y - hs/2, hs, hs),              // 1: 上中
+            new Rectangle(x + w - hs/2, y - hs/2, hs, hs),                // 2: 右上
+            new Rectangle(x + w - hs/2, y + h/2 - hs/2, hs, hs),          // 3: 右中
+            new Rectangle(x + w - hs/2, y + h - hs/2, hs, hs),            // 4: 右下
+            new Rectangle(x + w/2 - hs/2, y + h - hs/2, hs, hs),          // 5: 下中
+            new Rectangle(x - hs/2, y + h - hs/2, hs, hs),                // 6: 左下
+            new Rectangle(x - hs/2, y + h/2 - hs/2, hs, hs)               // 7: 左中
+        };
+        
+        for (int i = 0; i < handles.length; i++) {
+            if (handles[i].contains(p)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    /**
+     * 根据手柄索引获取对应的鼠标样式
+     */
+    private Cursor getResizeCursor(int handle) {
+        switch (handle) {
+            case 0: return Cursor.getPredefinedCursor(Cursor.NW_RESIZE_CURSOR);  // 左上
+            case 1: return Cursor.getPredefinedCursor(Cursor.N_RESIZE_CURSOR);   // 上中
+            case 2: return Cursor.getPredefinedCursor(Cursor.NE_RESIZE_CURSOR);  // 右上
+            case 3: return Cursor.getPredefinedCursor(Cursor.E_RESIZE_CURSOR);   // 右中
+            case 4: return Cursor.getPredefinedCursor(Cursor.SE_RESIZE_CURSOR);  // 右下
+            case 5: return Cursor.getPredefinedCursor(Cursor.S_RESIZE_CURSOR);   // 下中
+            case 6: return Cursor.getPredefinedCursor(Cursor.SW_RESIZE_CURSOR);  // 左下
+            case 7: return Cursor.getPredefinedCursor(Cursor.W_RESIZE_CURSOR);   // 左中
+            default: return Cursor.getDefaultCursor();
+        }
+    }
+
+    /**
+     * 根据手柄索引调整选区大小
+     */
+    private void resizeSelection(int handle, Point newPoint) {
+        if (captureRect == null) return;
+        
+        int x = captureRect.x;
+        int y = captureRect.y;
+        int w = captureRect.width;
+        int h = captureRect.height;
+        
+        int newX = x, newY = y, newW = w, newH = h;
+        
+        switch (handle) {
+            case 0: // 左上
+                newX = Math.min(newPoint.x, x + w - 10);
+                newY = Math.min(newPoint.y, y + h - 10);
+                newW = x + w - newX;
+                newH = y + h - newY;
+                break;
+            case 1: // 上中
+                newY = Math.min(newPoint.y, y + h - 10);
+                newH = y + h - newY;
+                break;
+            case 2: // 右上
+                newY = Math.min(newPoint.y, y + h - 10);
+                newW = Math.max(10, newPoint.x - x);
+                newH = y + h - newY;
+                break;
+            case 3: // 右中
+                newW = Math.max(10, newPoint.x - x);
+                break;
+            case 4: // 右下
+                newW = Math.max(10, newPoint.x - x);
+                newH = Math.max(10, newPoint.y - y);
+                break;
+            case 5: // 下中
+                newH = Math.max(10, newPoint.y - y);
+                break;
+            case 6: // 左下
+                newX = Math.min(newPoint.x, x + w - 10);
+                newW = x + w - newX;
+                newH = Math.max(10, newPoint.y - y);
+                break;
+            case 7: // 左中
+                newX = Math.min(newPoint.x, x + w - 10);
+                newW = x + w - newX;
+                break;
+        }
+        
+        // 更新选区
+        startPoint = new Point(newX, newY);
+        endPoint = new Point(newX + newW, newY + newH);
+        captureRect = new Rectangle(newX, newY, newW, newH);
+        
+        // 更新截取的图像
+        updateCapturedImage();
+    }
+
+    /**
+     * 更新截取的图像（选区调整后调用）
+     */
+    private void updateCapturedImage() {
+        if (captureRect == null || captureRect.width < 5 || captureRect.height < 5) return;
+        
+        int physicalX = (int) (captureRect.x * scaleX);
+        int physicalY = (int) (captureRect.y * scaleY);
+        int physicalWidth = (int) (captureRect.width * scaleX);
+        int physicalHeight = (int) (captureRect.height * scaleY);
+        
+        physicalX = Math.max(0, Math.min(physicalX, screenImage.getWidth() - 1));
+        physicalY = Math.max(0, Math.min(physicalY, screenImage.getHeight() - 1));
+        physicalWidth = Math.min(physicalWidth, screenImage.getWidth() - physicalX);
+        physicalHeight = Math.min(physicalHeight, screenImage.getHeight() - physicalY);
+        
+        if (physicalWidth > 0 && physicalHeight > 0) {
+            capturedImage = screenImage.getSubimage(physicalX, physicalY, physicalWidth, physicalHeight);
+        }
     }
 
     private BufferedImage getAnnotatedImage() {

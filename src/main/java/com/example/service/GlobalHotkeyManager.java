@@ -37,10 +37,6 @@ public class GlobalHotkeyManager implements NativeKeyListener {
             // 注册全局键盘钩子
             GlobalScreen.registerNativeHook();
             GlobalScreen.addNativeKeyListener(this);
-            
-            System.out.println("全局快捷键已注册:");
-            System.out.println("  Ctrl+Shift+A - 全屏截图");
-            System.out.println("  Ctrl+Shift+S - 选区截图");
         } catch (NativeHookException e) {
             System.err.println("注册全局快捷键失败: " + e.getMessage());
             e.printStackTrace();
