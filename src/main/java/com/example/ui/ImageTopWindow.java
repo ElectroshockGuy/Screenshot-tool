@@ -21,6 +21,8 @@ public class ImageTopWindow extends JFrame {
     private double scale = 1.0;
     private Point dragStartPoint;
     private JLabel imageLabel;
+    private boolean forceOnTop = false;
+    private Timer forceOnTopTimer;
 
     public ImageTopWindow(File imageFile) {
         try {
@@ -29,8 +31,10 @@ public class ImageTopWindow extends JFrame {
                 throw new Exception("无法读取图片文件");
             }
             displayImage = originalImage;
-            initWindow(imageFile.getName());
+            this.forceOnTop = true;
+            initWindow(imageFile.getName(), true);
             initListeners();
+            startForceOnTopTimer();
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null,
@@ -42,16 +46,28 @@ public class ImageTopWindow extends JFrame {
     }
 
     public ImageTopWindow(BufferedImage image, String title) {
+        this(image, title, true);
+    }
+    
+    public ImageTopWindow(BufferedImage image, String title, boolean forceOnTop) {
         this.originalImage = image;
         this.displayImage = image;
-        initWindow(title);
+        this.forceOnTop = forceOnTop;
+        initWindow(title, forceOnTop);
         initListeners();
+        if (forceOnTop) {
+            startForceOnTopTimer();
+        }
     }
 
-    private void initWindow(String title) {
+    private void initWindow(String title, boolean forceOnTop) {
         setTitle("置顶 - " + title);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setAlwaysOnTop(true);
+        if (forceOnTop) {
+            // 强制置顶：设置为工具窗口类型，Win+D 时不会被最小化
+            setType(Type.UTILITY);
+        }
         setUndecorated(false);
         setResizable(true);
 
@@ -136,10 +152,34 @@ public class ImageTopWindow extends JFrame {
 
         popup.addSeparator();
 
-        // 置顶开关
-        JCheckBoxMenuItem alwaysOnTopItem = new JCheckBoxMenuItem("始终置顶", true);
-        alwaysOnTopItem.addActionListener(e -> setAlwaysOnTop(alwaysOnTopItem.isSelected()));
-        popup.add(alwaysOnTopItem);
+        // 置顶模式切换（单选）
+        JCheckBoxMenuItem forceOnTopItem = new JCheckBoxMenuItem("强制置顶", forceOnTop);
+        JCheckBoxMenuItem normalOnTopItem = new JCheckBoxMenuItem("普通置顶", !forceOnTop);
+        
+        forceOnTopItem.setToolTipText("Win+D时不会消失，始终在最前");
+        forceOnTopItem.addActionListener(e -> {
+            if (!forceOnTop) {
+                setForceOnTop(true);
+                forceOnTopItem.setSelected(true);
+                normalOnTopItem.setSelected(false);
+            } else {
+                forceOnTopItem.setSelected(true);
+            }
+        });
+        
+        normalOnTopItem.setToolTipText("可被其他窗口覆盖");
+        normalOnTopItem.addActionListener(e -> {
+            if (forceOnTop) {
+                setForceOnTop(false);
+                normalOnTopItem.setSelected(true);
+                forceOnTopItem.setSelected(false);
+            } else {
+                normalOnTopItem.setSelected(true);
+            }
+        });
+        
+        popup.add(forceOnTopItem);
+        popup.add(normalOnTopItem);
 
         popup.addSeparator();
 
@@ -208,6 +248,86 @@ public class ImageTopWindow extends JFrame {
                 KeyStroke.getKeyStroke(KeyEvent.VK_ESCAPE, 0),
                 JComponent.WHEN_IN_FOCUSED_WINDOW
         );
+
+        addWindowFocusListener(new WindowAdapter() {
+            @Override
+            public void windowLostFocus(WindowEvent e) {
+                if (forceOnTop) {
+                    bringToFrontIfNeeded();
+                }
+            }
+        });
+
+        addWindowListener(new WindowAdapter() {
+            @Override
+            public void windowClosed(WindowEvent e) {
+                stopForceOnTopTimer();
+            }
+
+            @Override
+            public void windowClosing(WindowEvent e) {
+                stopForceOnTopTimer();
+            }
+        });
+    }
+
+    private void setForceOnTop(boolean enabled) {
+        if (this.forceOnTop == enabled) {
+            return;
+        }
+        this.forceOnTop = enabled;
+        
+        // 切换窗口类型需要重建窗口
+        Type targetType = enabled ? Type.UTILITY : Type.NORMAL;
+        if (getType() != targetType) {
+            Point location = getLocation();
+            Dimension size = getSize();
+            
+            setVisible(false);
+            dispose();
+            setType(targetType);
+            setSize(size);
+            setLocation(location);
+            setVisible(true);
+        }
+        
+        setAlwaysOnTop(true);
+        
+        if (enabled) {
+            startForceOnTopTimer();
+            toFront();
+        } else {
+            stopForceOnTopTimer();
+        }
+    }
+
+    private void startForceOnTopTimer() {
+        if (forceOnTopTimer != null && forceOnTopTimer.isRunning()) {
+            return;
+        }
+        forceOnTopTimer = new Timer(800, e -> {
+            if (forceOnTop && isVisible()) {
+                bringToFrontIfNeeded();
+            }
+        });
+        forceOnTopTimer.setRepeats(true);
+        forceOnTopTimer.start();
+    }
+
+    private void stopForceOnTopTimer() {
+        if (forceOnTopTimer != null) {
+            forceOnTopTimer.stop();
+            forceOnTopTimer = null;
+        }
+    }
+
+    private void bringToFrontIfNeeded() {
+        if (!isVisible()) {
+            return;
+        }
+        // UTILITY 窗口类型在 Win+D 时不会被最小化，无需检查 ICONIFIED 状态
+        setAlwaysOnTop(true);
+        toFront();
     }
 
     private void setZoom(double newScale) {
