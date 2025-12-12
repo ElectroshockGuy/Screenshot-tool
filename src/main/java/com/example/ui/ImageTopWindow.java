@@ -31,8 +31,10 @@ public class ImageTopWindow extends JFrame {
                 throw new Exception("无法读取图片文件");
             }
             displayImage = originalImage;
-            initWindow(imageFile.getName());
+            this.forceOnTop = true;
+            initWindow(imageFile.getName(), true);
             initListeners();
+            startForceOnTopTimer();
         } catch (Exception e) {
             e.printStackTrace();
             JOptionPane.showMessageDialog(null,
@@ -44,18 +46,28 @@ public class ImageTopWindow extends JFrame {
     }
 
     public ImageTopWindow(BufferedImage image, String title) {
+        this(image, title, true);
+    }
+    
+    public ImageTopWindow(BufferedImage image, String title, boolean forceOnTop) {
         this.originalImage = image;
         this.displayImage = image;
-        initWindow(title);
+        this.forceOnTop = forceOnTop;
+        initWindow(title, forceOnTop);
         initListeners();
+        if (forceOnTop) {
+            startForceOnTopTimer();
+        }
     }
 
-    private void initWindow(String title) {
+    private void initWindow(String title, boolean forceOnTop) {
         setTitle("置顶 - " + title);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         setAlwaysOnTop(true);
-        // 设置为工具窗口类型，Win+D 时不会被最小化（类似钉钉效果）
-        setType(Type.UTILITY);
+        if (forceOnTop) {
+            // 强制置顶：设置为工具窗口类型，Win+D 时不会被最小化
+            setType(Type.UTILITY);
+        }
         setUndecorated(false);
         setResizable(true);
 
@@ -140,14 +152,26 @@ public class ImageTopWindow extends JFrame {
 
         popup.addSeparator();
 
-        // 置顶开关
-        JCheckBoxMenuItem alwaysOnTopItem = new JCheckBoxMenuItem("始终置顶", true);
-        alwaysOnTopItem.addActionListener(e -> setAlwaysOnTop(alwaysOnTopItem.isSelected()));
-        popup.add(alwaysOnTopItem);
-
-        JCheckBoxMenuItem forceOnTopItem = new JCheckBoxMenuItem("强制置顶", false);
-        forceOnTopItem.addActionListener(e -> setForceOnTop(forceOnTopItem.isSelected()));
+        // 置顶模式切换（单选）
+        JCheckBoxMenuItem forceOnTopItem = new JCheckBoxMenuItem("强制置顶", forceOnTop);
+        JCheckBoxMenuItem normalOnTopItem = new JCheckBoxMenuItem("普通置顶", !forceOnTop);
+        
+        forceOnTopItem.setToolTipText("Win+D时不会消失，始终在最前");
+        forceOnTopItem.addActionListener(e -> {
+            setForceOnTop(true);
+            forceOnTopItem.setSelected(true);
+            normalOnTopItem.setSelected(false);
+        });
+        
+        normalOnTopItem.setToolTipText("可被其他窗口覆盖");
+        normalOnTopItem.addActionListener(e -> {
+            setForceOnTop(false);
+            normalOnTopItem.setSelected(true);
+            forceOnTopItem.setSelected(false);
+        });
+        
         popup.add(forceOnTopItem);
+        popup.add(normalOnTopItem);
 
         popup.addSeparator();
 
@@ -240,11 +264,30 @@ public class ImageTopWindow extends JFrame {
     }
 
     private void setForceOnTop(boolean enabled) {
+        if (this.forceOnTop == enabled) {
+            return;
+        }
         this.forceOnTop = enabled;
+        
+        // 切换窗口类型需要重建窗口
+        Type targetType = enabled ? Type.UTILITY : Type.NORMAL;
+        if (getType() != targetType) {
+            Point location = getLocation();
+            Dimension size = getSize();
+            
+            setVisible(false);
+            dispose();
+            setType(targetType);
+            setSize(size);
+            setLocation(location);
+            setVisible(true);
+        }
+        
+        setAlwaysOnTop(true);
+        
         if (enabled) {
-            setAlwaysOnTop(true);
             startForceOnTopTimer();
-            bringToFrontIfNeeded();
+            toFront();
         } else {
             stopForceOnTopTimer();
         }
