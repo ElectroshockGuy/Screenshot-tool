@@ -1,0 +1,342 @@
+name: Build and Release Multi-Arch
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'src/**'
+      - 'pom.xml'
+      - 'launcher/**'
+      - '.github/workflows/release.yml'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      create_release:
+        description: 'Create GitHub Release'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  GO_VERSION: '1.21'
+  JAVA_VERSION: '8'
+  APP_NAME: 'springboot-swing'
+
+jobs:
+  # ============================================
+  # Job 1: Build JAR with Maven
+  # ============================================
+  build-jar:
+    name: Build JAR
+    runs-on: ubuntu-latest
+    
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      jar_name: ${{ steps.version.outputs.jar_name }}
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: version
+        run: |
+          if [[ $GITHUB_REF == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF#refs/tags/v}"
+          else
+            VERSION="dev-$(date +%Y%m%d-%H%M%S)"
+          fi
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "jar_name=${{ env.APP_NAME }}-${VERSION}.jar" >> $GITHUB_OUTPUT
+          echo "Version: $VERSION"
+
+      - name: Set up JDK ${{ env.JAVA_VERSION }}
+        uses: actions/setup-java@v4
+        with:
+          java-version: ${{ env.JAVA_VERSION }}
+          distribution: 'temurin'
+          cache: 'maven'
+
+      - name: Build JAR with Maven
+        run: |
+          mvn clean package -DskipTests -q
+          ls -la target/
+
+      - name: Verify JAR
+        run: |
+          JAR_FILE="target/${{ env.APP_NAME }}-1.0.0.jar"
+          if [ ! -f "$JAR_FILE" ]; then
+            echo "Error: JAR file not found at $JAR_FILE"
+            exit 1
+          fi
+          echo "JAR file size: $(du -h $JAR_FILE | cut -f1)"
+          # Verify JAR is valid
+          unzip -t "$JAR_FILE" > /dev/null
+
+      - name: Upload JAR artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: jar-artifact
+          path: target/${{ env.APP_NAME }}-1.0.0.jar
+          retention-days: 7
+
+  # ============================================
+  # Job 2: Download JREs for all platforms
+  # ============================================
+  download-jres:
+    name: Download JREs
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Cache JREs
+        id: cache-jres
+        uses: actions/cache@v4
+        with:
+          path: launcher/jre
+          key: jres-temurin21-v2
+
+      - name: Download JREs
+        if: steps.cache-jres.outputs.cache-hit != 'true'
+        working-directory: launcher
+        run: |
+          chmod +x download_jre.sh
+          ./download_jre.sh
+
+      - name: Upload JRE artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: jre-artifacts
+          path: launcher/jre/
+          retention-days: 7
+
+  # ============================================
+  # Job 3: Build binaries for each platform (matrix)
+  # ============================================
+  build-binaries:
+    name: Build ${{ matrix.goos }}-${{ matrix.goarch }}
+    runs-on: ubuntu-latest
+    needs: [build-jar, download-jres]
+    
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: linux
+            goarch: amd64
+            jre_file: jre-linux-amd64.tar.gz
+            ext: ''
+          - goos: linux
+            goarch: arm64
+            jre_file: jre-linux-arm64.tar.gz
+            ext: ''
+          - goos: windows
+            goarch: amd64
+            jre_file: jre-windows-amd64.tar.gz
+            ext: '.exe'
+          - goos: windows
+            goarch: arm64
+            jre_file: jre-windows-arm64.tar.gz
+            ext: '.exe'
+          - goos: darwin
+            goarch: amd64
+            jre_file: jre-macos-amd64.tar.gz
+            ext: ''
+          - goos: darwin
+            goarch: arm64
+            jre_file: jre-macos-arm64.tar.gz
+            ext: ''
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: launcher/go.mod
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: jar-artifact
+          path: ./
+
+      - name: Download JRE artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: jre-artifacts
+          path: launcher/jre/
+
+      - name: Prepare build
+        run: |
+          mkdir -p launcher/embed launcher/dist
+          cp ${{ env.APP_NAME }}-1.0.0.jar launcher/embed/app.jar
+          cp launcher/jre/${{ matrix.jre_file }} launcher/embed/jre.tar.gz
+          ls -la launcher/embed/
+
+      - name: Build binary
+        working-directory: launcher
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: 0
+        run: |
+          VERSION="${{ needs.build-jar.outputs.version }}"
+          OUTPUT_NAME="${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}"
+          
+          go build -ldflags="-s -w -X main.Version=${VERSION}" -o "dist/${OUTPUT_NAME}" .
+          
+          echo "Built: dist/${OUTPUT_NAME}"
+          ls -lh "dist/${OUTPUT_NAME}"
+
+      - name: Clean up embed
+        run: rm -rf launcher/embed/
+
+      - name: Upload binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: binary-${{ matrix.goos }}-${{ matrix.goarch }}
+          path: launcher/dist/${{ env.APP_NAME }}-${{ matrix.goos }}-${{ matrix.goarch }}${{ matrix.ext }}
+          retention-days: 7
+
+  # ============================================
+  # Job 4: Verify and package all binaries
+  # ============================================
+  verify:
+    name: Verify & Package
+    runs-on: ubuntu-latest
+    needs: [build-jar, build-binaries]
+    
+    steps:
+      - name: Download all binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: binary-*
+          path: dist/
+          merge-multiple: true
+
+      - name: List all artifacts
+        run: |
+          echo "Built artifacts:"
+          ls -lh dist/
+
+      - name: Verify all platforms built
+        run: |
+          EXPECTED_FILES=(
+            "${{ env.APP_NAME }}-linux-amd64"
+            "${{ env.APP_NAME }}-linux-arm64"
+            "${{ env.APP_NAME }}-windows-amd64.exe"
+            "${{ env.APP_NAME }}-windows-arm64.exe"
+            "${{ env.APP_NAME }}-darwin-amd64"
+            "${{ env.APP_NAME }}-darwin-arm64"
+          )
+          
+          MISSING=0
+          for file in "${EXPECTED_FILES[@]}"; do
+            if [ ! -f "dist/$file" ]; then
+              echo "❌ Missing: $file"
+              MISSING=$((MISSING+1))
+            else
+              SIZE=$(du -h "dist/$file" | cut -f1)
+              echo "✅ Found: $file ($SIZE)"
+            fi
+          done
+          
+          if [ $MISSING -gt 0 ]; then
+            echo "Error: $MISSING files missing!"
+            exit 1
+          fi
+          
+          echo ""
+          echo "All 6 platform binaries verified!"
+
+      - name: Generate checksums
+        working-directory: dist
+        run: |
+          sha256sum * > checksums.txt
+          echo ""
+          echo "Checksums:"
+          cat checksums.txt
+
+      - name: Upload release package
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-package-${{ needs.build-jar.outputs.version }}
+          path: dist/
+          retention-days: 30
+
+  # ============================================
+  # Job 5: Create GitHub Release
+  # ============================================
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    needs: [build-jar, verify]
+    if: startsWith(github.ref, 'refs/tags/v') || (github.event_name == 'workflow_dispatch' && github.event.inputs.create_release == 'true')
+    
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Download release package
+        uses: actions/download-artifact@v4
+        with:
+          name: release-package-${{ needs.build-jar.outputs.version }}
+          path: dist/
+
+      - name: Download JAR artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: jar-artifact
+          path: dist/
+
+      - name: List release files
+        run: |
+          echo "Release files:"
+          ls -lh dist/
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/') && github.ref_name || format('v{0}', needs.build-jar.outputs.version) }}
+          name: Release ${{ needs.build-jar.outputs.version }}
+          draft: false
+          prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
+          generate_release_notes: true
+          body: |
+            ## 📦 下载
+
+            | 平台 | 架构 | 文件 |
+            |------|------|------|
+            | 🐧 Linux | x64 | `${{ env.APP_NAME }}-linux-amd64` |
+            | 🐧 Linux | ARM64 | `${{ env.APP_NAME }}-linux-arm64` |
+            | 🪟 Windows | x64 | `${{ env.APP_NAME }}-windows-amd64.exe` |
+            | 🪟 Windows | ARM64 | `${{ env.APP_NAME }}-windows-arm64.exe` |
+            | 🍎 macOS | Intel | `${{ env.APP_NAME }}-darwin-amd64` |
+            | 🍎 macOS | Apple Silicon | `${{ env.APP_NAME }}-darwin-arm64` |
+
+            ## ✅ 校验
+
+            下载后请使用 `checksums.txt` 验证文件完整性：
+            ```bash
+            sha256sum -c checksums.txt
+            ```
+
+            ## 🚀 使用方法
+
+            1. 下载对应平台的可执行文件
+            2. Linux/macOS 需要添加执行权限: `chmod +x ${{ env.APP_NAME }}-*`
+            3. 双击运行或在终端执行
+          files: |
+            dist/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
