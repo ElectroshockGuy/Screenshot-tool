@@ -42,6 +42,8 @@ public class ScreenCaptureWindow extends JFrame {
     private Annotation selectedAnnotation = null; // 当前选中的标注
     private Point dragStart = null; // 拖动起始点
     private boolean isDraggingAnnotation = false; // 是否正在拖动标注
+    private int activeHandle = -1; // 当前激活的控制手柄 (-1=无, 0=旋转, 1=缩放起点, 2=缩放终点)
+    private double lastRotateAngle = 0; // 上一次旋转角度
     private int nextNumber = 1; // 下一个序号
     private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
     private java.util.Map<AnnotationMode, JButton> annotationButtons = new java.util.HashMap<>(); // 标注按钮映射
@@ -350,16 +352,60 @@ public class ScreenCaptureWindow extends JFrame {
                             return;
                         }
                         
-                        // 检查是否点击了已有标注（用于拖动）
+                        // 检查是否点击了已选中标注的控制手柄（旋转/缩放）
                         if (captureRect != null && captureRect.contains(p) && currentMode == AnnotationMode.NONE) {
+                            // 先检查已选中标注的控制手柄
+                            if (selectedAnnotation != null && selectedAnnotation.supportsTransform()) {
+                                int handle = selectedAnnotation.getHandleAt(p);
+                                if (handle >= 0) {
+                                    activeHandle = handle;
+                                    dragStart = p;
+                                    if (handle == 0) {
+                                        // 旋转：记录初始角度
+                                        Point center = selectedAnnotation.getCenter();
+                                        lastRotateAngle = Math.atan2(p.y - center.y, p.x - center.x);
+                                    }
+                                    isDraggingAnnotation = true;
+                                    repaint();
+                                    return;
+                                }
+                            }
+                            
+                            // 检查是否点击了其他标注（用于选中和拖动）
                             for (int i = annotations.size() - 1; i >= 0; i--) {
-                                if (annotations.get(i).contains(p)) {
-                                    selectedAnnotation = annotations.get(i);
+                                Annotation ann = annotations.get(i);
+                                // 先检查控制手柄
+                                if (ann.supportsTransform()) {
+                                    int handle = ann.getHandleAt(p);
+                                    if (handle >= 0) {
+                                        selectedAnnotation = ann;
+                                        activeHandle = handle;
+                                        dragStart = p;
+                                        if (handle == 0) {
+                                            Point center = ann.getCenter();
+                                            lastRotateAngle = Math.atan2(p.y - center.y, p.x - center.x);
+                                        }
+                                        isDraggingAnnotation = true;
+                                        repaint();
+                                        return;
+                                    }
+                                }
+                                // 再检查是否点击在标注上
+                                if (ann.contains(p)) {
+                                    selectedAnnotation = ann;
+                                    activeHandle = -1;
                                     dragStart = p;
                                     isDraggingAnnotation = true;
                                     repaint();
                                     return;
                                 }
+                            }
+                            
+                            // 点击空白处，取消选中
+                            if (selectedAnnotation != null) {
+                                selectedAnnotation = null;
+                                activeHandle = -1;
+                                repaint();
                             }
                         }
                         
@@ -404,7 +450,7 @@ public class ScreenCaptureWindow extends JFrame {
                 if (e.getButton() == MouseEvent.BUTTON1) {
                     if (isDraggingAnnotation) {
                         isDraggingAnnotation = false;
-                        selectedAnnotation = null;
+                        activeHandle = -1;
                         dragStart = null;
                         capturePanel.setCursor(Cursor.getDefaultCursor());
                         repaint();
@@ -426,11 +472,26 @@ public class ScreenCaptureWindow extends JFrame {
             public void mouseDragged(MouseEvent e) {
                 mousePoint = e.getPoint();
                 if (isDraggingAnnotation && selectedAnnotation != null && dragStart != null) {
-                    capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
-                    int dx = e.getX() - dragStart.x;
-                    int dy = e.getY() - dragStart.y;
-                    selectedAnnotation.move(dx, dy);
-                    dragStart = e.getPoint();
+                    if (activeHandle == 0) {
+                        // 旋转操作
+                        capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                        Point center = selectedAnnotation.getCenter();
+                        double currentAngle = Math.atan2(e.getY() - center.y, e.getX() - center.x);
+                        double deltaAngle = currentAngle - lastRotateAngle;
+                        selectedAnnotation.rotate(center, deltaAngle);
+                        lastRotateAngle = currentAngle;
+                    } else if (activeHandle == 1 || activeHandle == 2) {
+                        // 缩放操作（移动端点）
+                        capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+                        selectedAnnotation.scale(activeHandle, e.getPoint());
+                    } else {
+                        // 普通拖动
+                        capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.MOVE_CURSOR));
+                        int dx = e.getX() - dragStart.x;
+                        int dy = e.getY() - dragStart.y;
+                        selectedAnnotation.move(dx, dy);
+                        dragStart = e.getPoint();
+                    }
                     repaint();
                 } else if (isAnnotating) {
                     if (currentMode == AnnotationMode.PEN) {
@@ -451,9 +512,38 @@ public class ScreenCaptureWindow extends JFrame {
                 
                 // 检查鼠标是否悬停在标注上，修改鼠标样式
                 if (selectionComplete && currentMode == AnnotationMode.NONE && captureRect != null && captureRect.contains(mousePoint)) {
+                    // 先检查已选中标注的控制手柄
+                    if (selectedAnnotation != null && selectedAnnotation.supportsTransform()) {
+                        int handle = selectedAnnotation.getHandleAt(mousePoint);
+                        if (handle == 0) {
+                            capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                            repaint();
+                            return;
+                        } else if (handle == 1 || handle == 2) {
+                            capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+                            repaint();
+                            return;
+                        }
+                    }
+                    
+                    // 检查是否悬停在任意标注上
                     boolean overAnnotation = false;
                     for (int i = annotations.size() - 1; i >= 0; i--) {
-                        if (annotations.get(i).contains(mousePoint)) {
+                        Annotation ann = annotations.get(i);
+                        // 检查控制手柄
+                        if (ann.supportsTransform()) {
+                            int handle = ann.getHandleAt(mousePoint);
+                            if (handle == 0) {
+                                capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+                                repaint();
+                                return;
+                            } else if (handle == 1 || handle == 2) {
+                                capturePanel.setCursor(Cursor.getPredefinedCursor(Cursor.CROSSHAIR_CURSOR));
+                                repaint();
+                                return;
+                            }
+                        }
+                        if (ann.contains(mousePoint)) {
                             overAnnotation = true;
                             break;
                         }
@@ -775,6 +865,11 @@ public class ScreenCaptureWindow extends JFrame {
             // 绘制已完成的标注
             for (Annotation annotation : annotations) {
                 annotation.draw(g2d, 0, 0, screenImage);
+            }
+            
+            // 绘制选中标注的控制手柄
+            if (selectedAnnotation != null && selectedAnnotation.supportsTransform() && currentMode == AnnotationMode.NONE) {
+                selectedAnnotation.drawHandles(g2d, 0, 0);
             }
             
             // 绘制正在进行的标注预览
@@ -1209,6 +1304,14 @@ public class ScreenCaptureWindow extends JFrame {
         void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage);
         boolean contains(Point p);
         void move(int dx, int dy);
+        
+        // 可选：支持旋转和缩放的标注可以覆盖这些方法
+        default boolean supportsTransform() { return false; }
+        default int getHandleAt(Point p) { return -1; } // -1=无, 0=旋转, 1=缩放起点, 2=缩放终点
+        default void rotate(Point center, double deltaAngle) {}
+        default void scale(int handleType, Point newPos) {}
+        default void drawHandles(Graphics2D g2d, int offsetX, int offsetY) {}
+        default Point getCenter() { return null; }
     }
 
     /**
@@ -1596,11 +1699,13 @@ public class ScreenCaptureWindow extends JFrame {
     }
 
     /**
-     * 箭头标注
+     * 箭头标注 - 支持拖动、旋转和缩放
      */
     private static class ArrowAnnotation implements Annotation {
         private Point start, end;
         private final Color color;
+        private static final int HANDLE_SIZE = 8;
+        private static final int ROTATE_HANDLE_DISTANCE = 25;
 
         public ArrowAnnotation(Point start, Point end, Color color) {
             this.start = new Point(start);
@@ -1659,6 +1764,112 @@ public class ScreenCaptureWindow extends JFrame {
             start.y += dy;
             end.x += dx;
             end.y += dy;
+        }
+        
+        @Override
+        public boolean supportsTransform() { return true; }
+        
+        @Override
+        public Point getCenter() {
+            return new Point((start.x + end.x) / 2, (start.y + end.y) / 2);
+        }
+        
+        private Point getRotateHandlePos() {
+            Point center = getCenter();
+            double angle = Math.atan2(end.y - start.y, end.x - start.x);
+            // 旋转手柄在箭头中心的垂直方向上方
+            double perpAngle = angle - Math.PI / 2;
+            return new Point(
+                (int)(center.x + ROTATE_HANDLE_DISTANCE * Math.cos(perpAngle)),
+                (int)(center.y + ROTATE_HANDLE_DISTANCE * Math.sin(perpAngle))
+            );
+        }
+        
+        @Override
+        public int getHandleAt(Point p) {
+            // 检查旋转手柄 (0)
+            Point rotateHandle = getRotateHandlePos();
+            if (Math.abs(p.x - rotateHandle.x) <= HANDLE_SIZE && Math.abs(p.y - rotateHandle.y) <= HANDLE_SIZE) {
+                return 0;
+            }
+            // 检查起点缩放手柄 (1)
+            if (Math.abs(p.x - start.x) <= HANDLE_SIZE && Math.abs(p.y - start.y) <= HANDLE_SIZE) {
+                return 1;
+            }
+            // 检查终点缩放手柄 (2)
+            if (Math.abs(p.x - end.x) <= HANDLE_SIZE && Math.abs(p.y - end.y) <= HANDLE_SIZE) {
+                return 2;
+            }
+            return -1;
+        }
+        
+        @Override
+        public void rotate(Point center, double deltaAngle) {
+            // 绕中心点旋转起点和终点
+            start = rotatePoint(start, center, deltaAngle);
+            end = rotatePoint(end, center, deltaAngle);
+        }
+        
+        private Point rotatePoint(Point p, Point center, double angle) {
+            double cos = Math.cos(angle);
+            double sin = Math.sin(angle);
+            int dx = p.x - center.x;
+            int dy = p.y - center.y;
+            return new Point(
+                (int)(center.x + dx * cos - dy * sin),
+                (int)(center.y + dx * sin + dy * cos)
+            );
+        }
+        
+        @Override
+        public void scale(int handleType, Point newPos) {
+            if (handleType == 1) {
+                // 移动起点
+                start = new Point(newPos);
+            } else if (handleType == 2) {
+                // 移动终点
+                end = new Point(newPos);
+            }
+        }
+        
+        @Override
+        public void drawHandles(Graphics2D g2d, int offsetX, int offsetY) {
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+            
+            // 绘制起点手柄（蓝色方块 - 缩放）
+            g2d.setColor(new Color(0, 120, 215));
+            int sx = start.x + offsetX;
+            int sy = start.y + offsetY;
+            g2d.fillRect(sx - HANDLE_SIZE/2, sy - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+            g2d.setColor(Color.WHITE);
+            g2d.drawRect(sx - HANDLE_SIZE/2, sy - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+            
+            // 绘制终点手柄（蓝色方块 - 缩放）
+            g2d.setColor(new Color(0, 120, 215));
+            int ex = end.x + offsetX;
+            int ey = end.y + offsetY;
+            g2d.fillRect(ex - HANDLE_SIZE/2, ey - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+            g2d.setColor(Color.WHITE);
+            g2d.drawRect(ex - HANDLE_SIZE/2, ey - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+            
+            // 绘制旋转手柄（绿色圆形）
+            Point rotateHandle = getRotateHandlePos();
+            int rx = rotateHandle.x + offsetX;
+            int ry = rotateHandle.y + offsetY;
+            Point center = getCenter();
+            int cx = center.x + offsetX;
+            int cy = center.y + offsetY;
+            
+            // 绘制连接线
+            g2d.setColor(new Color(100, 100, 100, 150));
+            g2d.setStroke(new BasicStroke(1, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 1, new float[]{3, 3}, 0));
+            g2d.drawLine(cx, cy, rx, ry);
+            
+            // 绘制旋转手柄圆形
+            g2d.setColor(new Color(76, 175, 80));
+            g2d.fillOval(rx - HANDLE_SIZE/2, ry - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
+            g2d.setColor(Color.WHITE);
+            g2d.drawOval(rx - HANDLE_SIZE/2, ry - HANDLE_SIZE/2, HANDLE_SIZE, HANDLE_SIZE);
         }
     }
 
