@@ -1345,6 +1345,28 @@ public class ScreenCaptureWindow extends JFrame {
     private void initListeners() {
         addMouseListener(new MouseAdapter() {
             @Override
+            public void mouseClicked(MouseEvent e) {
+                // 双击选区内直接复制到剪贴板
+                if (e.getClickCount() == 2 && e.getButton() == MouseEvent.BUTTON1) {
+                    Point p = e.getPoint();
+                    if (selectionComplete && captureRect != null && captureRect.contains(p)) {
+                        // 检查是否点击在工具栏上
+                        if (toolBar.isVisible() && toolBar.getBounds().contains(p)) {
+                            return;
+                        }
+                        // 检查是否点击在选项面板上
+                        if ((arrowOptionsPanel != null && arrowOptionsPanel.isVisible() && arrowOptionsPanel.getBounds().contains(p)) ||
+                            (textOptionsPanel != null && textOptionsPanel.isVisible() && textOptionsPanel.getBounds().contains(p)) ||
+                            (shapeOptionsPanel != null && shapeOptionsPanel.isVisible() && shapeOptionsPanel.getBounds().contains(p)) ||
+                            (numberOptionsPanel != null && numberOptionsPanel.isVisible() && numberOptionsPanel.getBounds().contains(p))) {
+                            return;
+                        }
+                        copyToClipboard();
+                    }
+                }
+            }
+            
+            @Override
             public void mousePressed(MouseEvent e) {
                 if (e.getButton() == MouseEvent.BUTTON1) {
                     Point p = e.getPoint();
