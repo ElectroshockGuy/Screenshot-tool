@@ -62,8 +62,6 @@ public class ScreenCaptureWindow extends JFrame {
     private int currentShapeStroke = 2; // 当前形状粗细
     private JPanel numberOptionsPanel; // 序号选项面板
     private int currentNumberSize = 24; // 当前序号大小
-    private JPanel pinOptionsPanel; // 置顶选项面板
-    private boolean forcePin = true; // 是否强制置顶，默认true
     private static final Color[] PRESET_COLORS = {
         new Color(255, 0, 0),      // 红色
         new Color(255, 165, 0),    // 橙色
@@ -118,7 +116,7 @@ public class ScreenCaptureWindow extends JFrame {
 
         // 置顶按钮
         JButton pinButton = createToolButton("📌", "置顶显示");
-        pinButton.addActionListener(e -> showPinOptionsPanel(pinButton));
+        pinButton.addActionListener(e -> pinToTop());
 
         // 复制按钮
         JButton copyButton = createToolButton("📋", "复制到剪贴板");
@@ -1162,78 +1160,6 @@ public class ScreenCaptureWindow extends JFrame {
         }
     }
     
-    private void createPinOptionsPanel() {
-        pinOptionsPanel = new JPanel();
-        pinOptionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 4));
-        pinOptionsPanel.setBackground(new Color(45, 45, 45));
-        pinOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(70, 70, 70), 1),
-            BorderFactory.createEmptyBorder(4, 8, 4, 8)
-        ));
-        pinOptionsPanel.setVisible(false);
-        
-        // 强制置顶按钮
-        JButton forcePinBtn = new JButton("强制置顶");
-        forcePinBtn.setFont(new Font("微软雅黑", Font.PLAIN, 12));
-        forcePinBtn.setForeground(Color.WHITE);
-        forcePinBtn.setBackground(forcePin ? new Color(0, 122, 255) : new Color(60, 60, 60));
-        forcePinBtn.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-        forcePinBtn.setFocusPainted(false);
-        forcePinBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        forcePinBtn.setToolTipText("Win+D时不会消失，始终在最前");
-        forcePinBtn.addActionListener(e -> {
-            forcePin = true;
-            hidePinOptionsPanel();
-            pinToTop();
-        });
-        
-        // 普通置顶按钮
-        JButton normalPinBtn = new JButton("普通置顶");
-        normalPinBtn.setFont(new Font("微软雅黑", Font.PLAIN, 12));
-        normalPinBtn.setForeground(Color.WHITE);
-        normalPinBtn.setBackground(!forcePin ? new Color(0, 122, 255) : new Color(60, 60, 60));
-        normalPinBtn.setBorder(BorderFactory.createEmptyBorder(6, 12, 6, 12));
-        normalPinBtn.setFocusPainted(false);
-        normalPinBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-        normalPinBtn.setToolTipText("可被其他窗口覆盖");
-        normalPinBtn.addActionListener(e -> {
-            forcePin = false;
-            hidePinOptionsPanel();
-            pinToTop();
-        });
-        
-        pinOptionsPanel.add(forcePinBtn);
-        pinOptionsPanel.add(normalPinBtn);
-        
-        capturePanel.add(pinOptionsPanel);
-    }
-    
-    private void showPinOptionsPanel(JButton button) {
-        if (pinOptionsPanel == null) {
-            createPinOptionsPanel();
-        }
-        
-        Dimension panelSize = pinOptionsPanel.getPreferredSize();
-        Point btnLoc = button.getLocationOnScreen();
-        Point panelLoc = capturePanel.getLocationOnScreen();
-        int x = btnLoc.x - panelLoc.x;
-        int y = btnLoc.y - panelLoc.y - panelSize.height - 5;
-        
-        if (y < 0) {
-            y = btnLoc.y - panelLoc.y + button.getHeight() + 5;
-        }
-        
-        pinOptionsPanel.setBounds(x, y, panelSize.width, panelSize.height);
-        pinOptionsPanel.setVisible(true);
-        pinOptionsPanel.repaint();
-    }
-    
-    private void hidePinOptionsPanel() {
-        if (pinOptionsPanel != null && pinOptionsPanel.isVisible()) {
-            pinOptionsPanel.setVisible(false);
-        }
-    }
-    
     private void repaintAllComponents(java.awt.Container container) {
         container.repaint();
         for (java.awt.Component comp : container.getComponents()) {
@@ -1555,7 +1481,6 @@ public class ScreenCaptureWindow extends JFrame {
                         hideTextOptionsPanel();
                         hideShapeOptionsPanel();
                         hideNumberOptionsPanel();
-                        hidePinOptionsPanel();
                         annotations.clear();
                         currentMode = AnnotationMode.NONE;
                         pendingText = null;
@@ -1569,7 +1494,6 @@ public class ScreenCaptureWindow extends JFrame {
                     hideTextOptionsPanel();
                     hideShapeOptionsPanel();
                     hideNumberOptionsPanel();
-                    hidePinOptionsPanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
@@ -1822,11 +1746,10 @@ public class ScreenCaptureWindow extends JFrame {
         if (capturedImage == null) return;
 
         BufferedImage finalImage = getAnnotatedImage();
-        boolean useForcePin = this.forcePin;
         dispose();
         SwingUtilities.invokeLater(() -> {
             ImageTopWindow topWindow = new ImageTopWindow(finalImage, "截图 " + 
-                    new SimpleDateFormat("HH:mm:ss").format(new Date()), useForcePin);
+                    new SimpleDateFormat("HH:mm:ss").format(new Date()));
             topWindow.setVisible(true);
         });
     }

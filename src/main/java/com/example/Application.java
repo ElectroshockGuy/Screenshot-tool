@@ -1,6 +1,7 @@
 package com.example;
 
 import com.example.ui.MainFrame;
+import com.example.ui.SystemTrayManager;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.context.ConfigurableApplicationContext;
@@ -31,6 +32,11 @@ public class Application {
 
         // 在EDT线程中启动Swing界面
         EventQueue.invokeLater(() -> {
+            // 初始化系统托盘
+            if (SystemTrayManager.isSupported()) {
+                SystemTrayManager.getInstance().showTrayIcon();
+            }
+            
             // 从Spring容器中获取主窗口Bean
             MainFrame mainFrame = context.getBean(MainFrame.class);
             mainFrame.setVisible(true);
