@@ -1740,7 +1740,37 @@ public class ScreenCaptureWindow extends JFrame {
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(transferable, null);
 
         dispose();
-        JOptionPane.showMessageDialog(null, "截图已复制到剪贴板", "提示", JOptionPane.INFORMATION_MESSAGE);
+        showAutoCloseToast("截图已复制到剪贴板");
+    }
+    
+    private void showAutoCloseToast(String message) {
+        JDialog dialog = new JDialog();
+        dialog.setUndecorated(true);
+        dialog.setAlwaysOnTop(true);
+        
+        JLabel label = new JLabel("  " + message + "  ", SwingConstants.CENTER);
+        label.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+        label.setForeground(Color.WHITE);
+        label.setBackground(new Color(50, 50, 50, 230));
+        label.setOpaque(true);
+        label.setBorder(BorderFactory.createEmptyBorder(10, 20, 10, 20));
+        
+        dialog.add(label);
+        dialog.pack();
+        
+        // 居中显示
+        Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+        dialog.setLocation(
+            (screenSize.width - dialog.getWidth()) / 2,
+            (screenSize.height - dialog.getHeight()) / 2
+        );
+        
+        dialog.setVisible(true);
+        
+        // 1.5秒后自动关闭
+        Timer timer = new Timer(1500, e -> dialog.dispose());
+        timer.setRepeats(false);
+        timer.start();
     }
 
     private void copyColorToClipboard() {
