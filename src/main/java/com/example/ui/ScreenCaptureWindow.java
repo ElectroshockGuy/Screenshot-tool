@@ -32,7 +32,9 @@ public class ScreenCaptureWindow extends JFrame {
     
     // 标注相关
     private enum AnnotationMode { NONE, TEXT, ARROW, MOSAIC, NUMBER, RECT, CIRCLE, PEN, HIGHLIGHT, WATERMARK }
+    private enum ArrowStyle { ARROW, LINE, WAVY, DASHED, DOUBLE_ARROW } // 箭头样式
     private AnnotationMode currentMode = AnnotationMode.NONE;
+    private ArrowStyle currentArrowStyle = ArrowStyle.ARROW; // 当前箭头样式
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
     private Point annotationEnd;
@@ -48,6 +50,7 @@ public class ScreenCaptureWindow extends JFrame {
     private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
     private java.util.Map<AnnotationMode, JButton> annotationButtons = new java.util.HashMap<>(); // 标注按钮映射
     private JPanel colorPanel; // 颜色选择面板
+    private JPanel stylePanel; // 样式选择面板
     private static final Color[] PRESET_COLORS = {
         new Color(255, 0, 0),      // 红色
         new Color(255, 165, 0),    // 橙色
@@ -125,6 +128,7 @@ public class ScreenCaptureWindow extends JFrame {
         arrowButton.addActionListener(e -> {
             setAnnotationMode(AnnotationMode.ARROW);
             showColorPanelNearButton(arrowButton);
+            showStylePanel(arrowButton);
         });
         annotationButtons.put(AnnotationMode.ARROW, arrowButton);
         
@@ -286,6 +290,92 @@ public class ScreenCaptureWindow extends JFrame {
         capturePanel.add(colorPanel);
     }
     
+    private void createStylePanel() {
+        stylePanel = new JPanel();
+        stylePanel.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 4));
+        stylePanel.setBackground(new Color(50, 50, 50));
+        stylePanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(80, 80, 80), 1),
+            BorderFactory.createEmptyBorder(4, 4, 4, 4)
+        ));
+        stylePanel.setVisible(false);
+        
+        String[][] styles = {
+            {"→", "ARROW", "普通箭头"},
+            {"—", "LINE", "直线"},
+            {"~", "WAVY", "波浪线"},
+            {"...", "DASHED", "虚线箭头"},
+            {"←→", "DOUBLE_ARROW", "双向箭头"}
+        };
+        
+        for (String[] styleInfo : styles) {
+            String icon = styleInfo[0];
+            String styleName = styleInfo[1];
+            String tooltip = styleInfo[2];
+            ArrowStyle arrowStyle = ArrowStyle.valueOf(styleName);
+            
+            JButton styleBtn = new JButton(icon) {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    if (currentArrowStyle == arrowStyle) {
+                        Graphics2D g2d = (Graphics2D) g;
+                        g2d.setColor(new Color(0, 120, 215));
+                        g2d.setStroke(new BasicStroke(2));
+                        g2d.drawRect(1, 1, getWidth() - 3, getHeight() - 3);
+                    }
+                }
+            };
+            styleBtn.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+            styleBtn.setPreferredSize(new Dimension(32, 26));
+            styleBtn.setBackground(new Color(60, 60, 60));
+            styleBtn.setForeground(Color.WHITE);
+            styleBtn.setBorder(BorderFactory.createEmptyBorder());
+            styleBtn.setFocusPainted(false);
+            styleBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            styleBtn.setToolTipText(tooltip);
+            
+            styleBtn.addActionListener(e -> {
+                currentArrowStyle = arrowStyle;
+                stylePanel.repaint();
+                repaint();
+            });
+            
+            stylePanel.add(styleBtn);
+        }
+        
+        capturePanel.add(stylePanel);
+    }
+    
+    private void showStylePanel(JButton button) {
+        if (stylePanel == null) {
+            createStylePanel();
+        }
+        
+        Dimension panelSize = stylePanel.getPreferredSize();
+        Point btnLoc = button.getLocationOnScreen();
+        Point panelLoc = capturePanel.getLocationOnScreen();
+        int x = btnLoc.x - panelLoc.x;
+        
+        // 样式面板显示在颜色面板下方
+        int colorPanelHeight = (colorPanel != null) ? colorPanel.getPreferredSize().height : 0;
+        int y = btnLoc.y - panelLoc.y - panelSize.height - colorPanelHeight - 10;
+        
+        if (y < 0) {
+            y = btnLoc.y - panelLoc.y + button.getHeight() + colorPanelHeight + 10;
+        }
+        
+        stylePanel.setBounds(x, y, panelSize.width, panelSize.height);
+        stylePanel.setVisible(true);
+        stylePanel.repaint();
+    }
+    
+    private void hideStylePanel() {
+        if (stylePanel != null && stylePanel.isVisible()) {
+            stylePanel.setVisible(false);
+        }
+    }
+    
     private void showColorPanel() {
         if (colorPanel == null) {
             createColorPanel();
@@ -395,9 +485,10 @@ public class ScreenCaptureWindow extends JFrame {
     private void setAnnotationMode(AnnotationMode mode) {
         this.currentMode = mode;
         
-        // 切换到非箭头模式时隐藏颜色面板
+        // 切换到非箭头模式时隐藏颜色面板和样式面板
         if (mode != AnnotationMode.ARROW) {
             hideColorPanel();
+            hideStylePanel();
         }
         
         // 更新按钮样式
@@ -569,6 +660,7 @@ public class ScreenCaptureWindow extends JFrame {
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
                     // 右键取消
                     hideColorPanel();
+                    hideStylePanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
@@ -738,7 +830,7 @@ public class ScreenCaptureWindow extends JFrame {
         }
         
         if (currentMode == AnnotationMode.ARROW) {
-            annotations.add(new ArrowAnnotation(annotationStart, annotationEnd, annotationColor));
+            annotations.add(new ArrowAnnotation(annotationStart, annotationEnd, annotationColor, currentArrowStyle));
         } else if (currentMode == AnnotationMode.MOSAIC) {
             int x = Math.min(annotationStart.x, annotationEnd.x);
             int y = Math.min(annotationStart.y, annotationEnd.y);
@@ -1848,19 +1940,24 @@ public class ScreenCaptureWindow extends JFrame {
     }
 
     /**
-     * 箭头标注 - 支持拖动、旋转和缩放
+     * 箭头标注 - 支持拖动、旋转和缩放，支持多种样式
      */
     private static class ArrowAnnotation implements Annotation {
         private Point start, end;
         private Color color;
+        private ArrowStyle style;
         private static final int HANDLE_SIZE = 8;
         private static final int ROTATE_HANDLE_DISTANCE = 25;
 
-        public ArrowAnnotation(Point start, Point end, Color color) {
+        public ArrowAnnotation(Point start, Point end, Color color, ArrowStyle style) {
             this.start = new Point(start);
             this.end = new Point(end);
             this.color = color;
+            this.style = style;
         }
+        
+        public ArrowStyle getStyle() { return style; }
+        public void setStyle(ArrowStyle style) { this.style = style; }
         
         @Override
         public boolean supportsColorChange() { return true; }
@@ -1875,27 +1972,93 @@ public class ScreenCaptureWindow extends JFrame {
         public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
             g2d.setColor(color);
-            g2d.setStroke(new BasicStroke(2));
             
             int x1 = start.x + offsetX;
             int y1 = start.y + offsetY;
             int x2 = end.x + offsetX;
             int y2 = end.y + offsetY;
-            
-            // 绘制线段
-            g2d.drawLine(x1, y1, x2, y2);
-            
-            // 绘制箭头
             double angle = Math.atan2(y2 - y1, x2 - x1);
-            int arrowSize = 12;
-            int ax1 = (int) (x2 - arrowSize * Math.cos(angle - Math.PI / 6));
-            int ay1 = (int) (y2 - arrowSize * Math.sin(angle - Math.PI / 6));
-            int ax2 = (int) (x2 - arrowSize * Math.cos(angle + Math.PI / 6));
-            int ay2 = (int) (y2 - arrowSize * Math.sin(angle + Math.PI / 6));
             
-            int[] xPoints = {x2, ax1, ax2};
-            int[] yPoints = {y2, ay1, ay2};
+            switch (style) {
+                case LINE:
+                    // 直线（无箭头）
+                    g2d.setStroke(new BasicStroke(2));
+                    g2d.drawLine(x1, y1, x2, y2);
+                    break;
+                    
+                case WAVY:
+                    // 波浪线
+                    g2d.setStroke(new BasicStroke(2));
+                    drawWavyLine(g2d, x1, y1, x2, y2);
+                    break;
+                    
+                case DASHED:
+                    // 虚线箭头
+                    g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, new float[]{8, 4}, 0));
+                    g2d.drawLine(x1, y1, x2, y2);
+                    g2d.setStroke(new BasicStroke(2));
+                    drawArrowHead(g2d, x2, y2, angle, 12);
+                    break;
+                    
+                case DOUBLE_ARROW:
+                    // 双向箭头
+                    g2d.setStroke(new BasicStroke(2));
+                    g2d.drawLine(x1, y1, x2, y2);
+                    drawArrowHead(g2d, x2, y2, angle, 12);
+                    drawArrowHead(g2d, x1, y1, angle + Math.PI, 12);
+                    break;
+                    
+                case ARROW:
+                default:
+                    // 普通箭头
+                    g2d.setStroke(new BasicStroke(2));
+                    g2d.drawLine(x1, y1, x2, y2);
+                    drawArrowHead(g2d, x2, y2, angle, 12);
+                    break;
+            }
+        }
+        
+        private void drawArrowHead(Graphics2D g2d, int x, int y, double angle, int size) {
+            int ax1 = (int) (x - size * Math.cos(angle - Math.PI / 6));
+            int ay1 = (int) (y - size * Math.sin(angle - Math.PI / 6));
+            int ax2 = (int) (x - size * Math.cos(angle + Math.PI / 6));
+            int ay2 = (int) (y - size * Math.sin(angle + Math.PI / 6));
+            int[] xPoints = {x, ax1, ax2};
+            int[] yPoints = {y, ay1, ay2};
             g2d.fillPolygon(xPoints, yPoints, 3);
+        }
+        
+        private void drawWavyLine(Graphics2D g2d, int x1, int y1, int x2, int y2) {
+            double length = Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+            double angle = Math.atan2(y2 - y1, x2 - x1);
+            double waveHeight = 6;
+            double waveLength = 12;
+            int segments = (int) (length / waveLength);
+            if (segments < 1) segments = 1;
+            
+            double perpAngle = angle + Math.PI / 2;
+            double segLen = length / segments;
+            
+            int prevX = x1, prevY = y1;
+            for (int i = 1; i <= segments; i++) {
+                double t = (double) i / segments;
+                int baseX = (int) (x1 + (x2 - x1) * t);
+                int baseY = (int) (y1 + (y2 - y1) * t);
+                
+                // 中点偏移
+                double midT = (i - 0.5) / segments;
+                int midBaseX = (int) (x1 + (x2 - x1) * midT);
+                int midBaseY = (int) (y1 + (y2 - y1) * midT);
+                double offset = (i % 2 == 0) ? waveHeight : -waveHeight;
+                int midX = (int) (midBaseX + offset * Math.cos(perpAngle));
+                int midY = (int) (midBaseY + offset * Math.sin(perpAngle));
+                
+                // 绘制贝塞尔曲线近似
+                g2d.drawLine(prevX, prevY, midX, midY);
+                g2d.drawLine(midX, midY, baseX, baseY);
+                prevX = baseX;
+                prevY = baseY;
+            }
         }
         
         @Override
