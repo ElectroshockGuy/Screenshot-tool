@@ -472,14 +472,14 @@ public class ScreenCaptureWindow extends JFrame {
         JPanel strokeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
         strokeSection.setBackground(new Color(45, 45, 45));
         
-        // 小圆点指示器
+        // 小圆点指示器（显示当前颜色）
         JPanel dotIndicator = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2d.setColor(new Color(0, 122, 255));
+                g2d.setColor(annotationColor);
                 g2d.fillOval(2, (getHeight() - 8) / 2, 8, 8);
             }
         };
@@ -498,14 +498,14 @@ public class ScreenCaptureWindow extends JFrame {
         });
         strokeSection.add(strokeSlider);
         
-        // 大圆点指示器
+        // 大圆点指示器（显示当前颜色）
         JPanel bigDotIndicator = new JPanel() {
             @Override
             protected void paintComponent(Graphics g) {
                 super.paintComponent(g);
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                g2d.setColor(Color.WHITE);
+                g2d.setColor(annotationColor);
                 g2d.fillOval(2, (getHeight() - 14) / 2, 14, 14);
             }
         };
@@ -529,19 +529,54 @@ public class ScreenCaptureWindow extends JFrame {
                 Graphics2D g2d = (Graphics2D) g;
                 g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 
-                // 绘制当前样式的箭头预览
-                g2d.setColor(Color.WHITE);
-                g2d.setStroke(new BasicStroke(2));
                 int y = getHeight() / 2;
-                g2d.drawLine(8, y, 28, y);
-                // 箭头头部
-                int[] xPoints = {28, 22, 22};
-                int[] yPoints = {y, y - 4, y + 4};
-                g2d.fillPolygon(xPoints, yPoints, 3);
+                g2d.setColor(annotationColor); // 使用当前选中的颜色
+                
+                // 根据当前样式绘制预览
+                switch (currentArrowStyle) {
+                    case LINE:
+                        g2d.setStroke(new BasicStroke(2));
+                        g2d.drawLine(8, y, 32, y);
+                        break;
+                    case WAVY:
+                        g2d.setStroke(new BasicStroke(2));
+                        for (int i = 0; i < 24; i += 6) {
+                            int yOffset = (i / 6) % 2 == 0 ? -3 : 3;
+                            g2d.drawLine(8 + i, y + (i == 0 ? 0 : ((i / 6 - 1) % 2 == 0 ? -3 : 3)), 
+                                        8 + i + 6, y + yOffset);
+                        }
+                        break;
+                    case DASHED:
+                        g2d.setStroke(new BasicStroke(2, BasicStroke.CAP_BUTT, BasicStroke.JOIN_MITER, 10, new float[]{4, 2}, 0));
+                        g2d.drawLine(8, y, 28, y);
+                        g2d.setStroke(new BasicStroke(2));
+                        int[] xd = {32, 26, 26};
+                        int[] yd = {y, y - 4, y + 4};
+                        g2d.fillPolygon(xd, yd, 3);
+                        break;
+                    case DOUBLE_ARROW:
+                        g2d.setStroke(new BasicStroke(2));
+                        g2d.drawLine(12, y, 28, y);
+                        int[] xda1 = {32, 26, 26};
+                        int[] yda1 = {y, y - 4, y + 4};
+                        g2d.fillPolygon(xda1, yda1, 3);
+                        int[] xda2 = {8, 14, 14};
+                        int[] yda2 = {y, y - 4, y + 4};
+                        g2d.fillPolygon(xda2, yda2, 3);
+                        break;
+                    case ARROW:
+                    default:
+                        g2d.setStroke(new BasicStroke(2));
+                        g2d.drawLine(8, y, 28, y);
+                        int[] xa = {32, 26, 26};
+                        int[] ya = {y, y - 4, y + 4};
+                        g2d.fillPolygon(xa, ya, 3);
+                        break;
+                }
                 
                 // 下拉箭头
                 g2d.setColor(new Color(150, 150, 150));
-                int[] triX = {36, 42, 39};
+                int[] triX = {38, 44, 41};
                 int[] triY = {y - 2, y - 2, y + 3};
                 g2d.fillPolygon(triX, triY, 3);
             }
@@ -569,7 +604,7 @@ public class ScreenCaptureWindow extends JFrame {
             item.setForeground(Color.WHITE);
             item.addActionListener(e -> {
                 currentArrowStyle = ArrowStyle.valueOf(styleInfo[1]);
-                arrowOptionsPanel.repaint();
+                repaintAllComponents(arrowOptionsPanel);
                 repaint();
             });
             styleMenu.add(item);
@@ -602,19 +637,21 @@ public class ScreenCaptureWindow extends JFrame {
                     Graphics2D g2d = (Graphics2D) g;
                     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                     
-                    // 圆角矩形色块
-                    g2d.setColor(color);
-                    g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
-                    
-                    // 选中状态边框
+                    // 选中状态：先绘制外层高亮边框
                     if (annotationColor.equals(color)) {
                         g2d.setColor(new Color(0, 122, 255));
-                        g2d.setStroke(new BasicStroke(2));
-                        g2d.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 6, 6);
+                        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        // 内层色块
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(3, 3, getWidth() - 6, getHeight() - 6, 4, 4);
+                    } else {
+                        // 未选中：直接绘制色块
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
                     }
                 }
             };
-            colorBtn.setPreferredSize(new Dimension(28, 24));
+            colorBtn.setPreferredSize(new Dimension(30, 26));
             colorBtn.setBackground(new Color(45, 45, 45));
             colorBtn.setBorder(BorderFactory.createEmptyBorder());
             colorBtn.setFocusPainted(false);
@@ -624,7 +661,8 @@ public class ScreenCaptureWindow extends JFrame {
                 if (selectedAnnotation != null && selectedAnnotation.supportsColorChange()) {
                     selectedAnnotation.setColor(color);
                 }
-                arrowOptionsPanel.repaint();
+                // 递归重绘所有子组件以更新圆点指示器颜色
+                repaintAllComponents(arrowOptionsPanel);
                 repaint();
             });
             arrowOptionsPanel.add(colorBtn);
@@ -656,6 +694,16 @@ public class ScreenCaptureWindow extends JFrame {
     private void hideArrowOptionsPanel() {
         if (arrowOptionsPanel != null && arrowOptionsPanel.isVisible()) {
             arrowOptionsPanel.setVisible(false);
+        }
+    }
+    
+    private void repaintAllComponents(java.awt.Container container) {
+        container.repaint();
+        for (java.awt.Component comp : container.getComponents()) {
+            comp.repaint();
+            if (comp instanceof java.awt.Container) {
+                repaintAllComponents((java.awt.Container) comp);
+            }
         }
     }
     
