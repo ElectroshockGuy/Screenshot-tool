@@ -150,6 +150,11 @@ public class ImageTopWindow extends JFrame {
         copyItem.addActionListener(e -> copyToClipboard());
         popup.add(copyItem);
 
+        // 另存为
+        JMenuItem saveAsItem = new JMenuItem("另存为...");
+        saveAsItem.addActionListener(e -> saveImageAs());
+        popup.add(saveAsItem);
+
         popup.addSeparator();
 
         // 置顶模式切换（单选）
@@ -346,7 +351,83 @@ public class ImageTopWindow extends JFrame {
 
         TransferableImage transferable = new TransferableImage(originalImage);
         Toolkit.getDefaultToolkit().getSystemClipboard().setContents(transferable, null);
-        JOptionPane.showMessageDialog(this, "图片已复制到剪贴板", "提示", JOptionPane.INFORMATION_MESSAGE);
+        showAutoCloseToast("图片已复制到剪贴板");
+    }
+
+    private void showAutoCloseToast(String message) {
+        SwingUtilities.invokeLater(() -> {
+            JDialog dialog = new JDialog();
+            dialog.setUndecorated(true);
+            dialog.setAlwaysOnTop(true);
+            
+            JLabel label = new JLabel("<html><center>" + message.replace("\n", "<br>") + "</center></html>", SwingConstants.CENTER);
+            label.setFont(new Font("微软雅黑", Font.PLAIN, 14));
+            label.setForeground(Color.WHITE);
+            label.setBackground(new Color(50, 50, 50, 230));
+            label.setOpaque(true);
+            label.setBorder(BorderFactory.createEmptyBorder(15, 25, 15, 25));
+            
+            dialog.add(label);
+            dialog.pack();
+            
+            // 居中显示
+            Dimension screenSize = Toolkit.getDefaultToolkit().getScreenSize();
+            dialog.setLocation(
+                (screenSize.width - dialog.getWidth()) / 2,
+                (screenSize.height - dialog.getHeight()) / 2
+            );
+            
+            dialog.setVisible(true);
+            
+            // 2秒后自动关闭
+            Timer timer = new Timer(2000, e -> dialog.dispose());
+            timer.setRepeats(false);
+            timer.start();
+        });
+    }
+
+    private void saveImageAs() {
+        if (originalImage == null) return;
+
+        JFileChooser fileChooser = new JFileChooser();
+        fileChooser.setDialogTitle("另存为");
+        
+        // 默认文件名
+        String defaultName = "image_" + new java.text.SimpleDateFormat("yyyyMMdd_HHmmss").format(new java.util.Date()) + ".png";
+        fileChooser.setSelectedFile(new File(defaultName));
+
+        // 文件过滤器
+        fileChooser.setFileFilter(new javax.swing.filechooser.FileFilter() {
+            @Override
+            public boolean accept(File f) {
+                return f.isDirectory() || f.getName().toLowerCase().endsWith(".png");
+            }
+
+            @Override
+            public String getDescription() {
+                return "PNG 图片 (*.png)";
+            }
+        });
+
+        int result = fileChooser.showSaveDialog(this);
+        if (result == JFileChooser.APPROVE_OPTION) {
+            File file = fileChooser.getSelectedFile();
+            if (!file.getName().toLowerCase().endsWith(".png")) {
+                file = new File(file.getAbsolutePath() + ".png");
+            }
+
+            try {
+                ImageIO.write(originalImage, "PNG", file);
+                // 使用自动消失的Toast提示
+                showAutoCloseToast("图片已保存到:\n" + file.getAbsolutePath());
+            } catch (Exception e) {
+                e.printStackTrace();
+                JOptionPane.showMessageDialog(this,
+                        "保存失败: " + e.getMessage(),
+                        "错误",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        }
     }
 
     /**
