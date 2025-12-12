@@ -1335,6 +1335,9 @@ public class ScreenCaptureWindow extends JFrame {
                         // 点击在选区外，重新开始选择
                         selectionComplete = false;
                         toolBar.setVisible(false);
+                        hideArrowOptionsPanel();
+                        hideTextOptionsPanel();
+                        hideShapeOptionsPanel();
                         annotations.clear();
                         currentMode = AnnotationMode.NONE;
                         pendingText = null;
