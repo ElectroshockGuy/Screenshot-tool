@@ -47,6 +47,18 @@ public class ScreenCaptureWindow extends JFrame {
     private int nextNumber = 1; // 下一个序号
     private java.util.List<Point> currentPenPath = new java.util.ArrayList<>(); // 当前画笔路径
     private java.util.Map<AnnotationMode, JButton> annotationButtons = new java.util.HashMap<>(); // 标注按钮映射
+    private JPanel colorPanel; // 颜色选择面板
+    private static final Color[] PRESET_COLORS = {
+        new Color(255, 0, 0),      // 红色
+        new Color(255, 165, 0),    // 橙色
+        new Color(255, 255, 0),    // 黄色
+        new Color(0, 255, 0),      // 绿色
+        new Color(0, 191, 255),    // 天蓝色
+        new Color(0, 0, 255),      // 蓝色
+        new Color(128, 0, 128),    // 紫色
+        new Color(255, 255, 255),  // 白色
+        new Color(0, 0, 0)         // 黑色
+    };
 
     public ScreenCaptureWindow() {
         initWindow();
@@ -110,7 +122,10 @@ public class ScreenCaptureWindow extends JFrame {
         annotationButtons.put(AnnotationMode.TEXT, textButton);
         
         JButton arrowButton = createToolButton("→ 箭头", "添加箭头标注");
-        arrowButton.addActionListener(e -> setAnnotationMode(AnnotationMode.ARROW));
+        arrowButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.ARROW);
+            showColorPanelNearButton(arrowButton);
+        });
         annotationButtons.put(AnnotationMode.ARROW, arrowButton);
         
         JButton mosaicButton = createToolButton("▦ 马赛克", "添加马赛克");
@@ -211,6 +226,123 @@ public class ScreenCaptureWindow extends JFrame {
         separator.setPreferredSize(new Dimension(1, 24));
         separator.setForeground(new Color(80, 80, 80));
         return separator;
+    }
+    
+    private void createColorPanel() {
+        colorPanel = new JPanel();
+        colorPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 4, 4));
+        colorPanel.setBackground(new Color(50, 50, 50));
+        colorPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(80, 80, 80), 1),
+            BorderFactory.createEmptyBorder(4, 4, 4, 4)
+        ));
+        colorPanel.setVisible(false);
+        
+        for (Color color : PRESET_COLORS) {
+            JButton colorBtn = new JButton() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    int size = 18;
+                    int x = (getWidth() - size) / 2;
+                    int y = (getHeight() - size) / 2;
+                    g2d.setColor(color);
+                    g2d.fillOval(x, y, size, size);
+                    // 选中状态边框
+                    if (annotationColor.equals(color)) {
+                        g2d.setColor(Color.WHITE);
+                        g2d.setStroke(new BasicStroke(2));
+                        g2d.drawOval(x - 1, y - 1, size + 2, size + 2);
+                    } else {
+                        g2d.setColor(new Color(100, 100, 100));
+                        g2d.setStroke(new BasicStroke(1));
+                        g2d.drawOval(x, y, size, size);
+                    }
+                }
+            };
+            colorBtn.setPreferredSize(new Dimension(26, 26));
+            colorBtn.setBackground(new Color(50, 50, 50));
+            colorBtn.setBorder(BorderFactory.createEmptyBorder());
+            colorBtn.setFocusPainted(false);
+            colorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            colorBtn.setToolTipText(String.format("RGB(%d, %d, %d)", color.getRed(), color.getGreen(), color.getBlue()));
+            
+            colorBtn.addActionListener(e -> {
+                annotationColor = color;
+                // 如果有选中的标注且支持颜色修改，同时修改它的颜色
+                if (selectedAnnotation != null && selectedAnnotation.supportsColorChange()) {
+                    selectedAnnotation.setColor(color);
+                }
+                // 不隐藏颜色面板，刷新显示选中状态
+                colorPanel.repaint();
+                repaint();
+            });
+            
+            colorPanel.add(colorBtn);
+        }
+        
+        capturePanel.add(colorPanel);
+    }
+    
+    private void showColorPanel() {
+        if (colorPanel == null) {
+            createColorPanel();
+        }
+        
+        int x, y;
+        Dimension panelSize = colorPanel.getPreferredSize();
+        
+        // 如果有选中的箭头，在箭头附近显示颜色面板
+        if (selectedAnnotation != null && selectedAnnotation.supportsColorChange()) {
+            Point center = selectedAnnotation.getCenter();
+            if (center != null) {
+                // 在箭头中心上方显示
+                x = center.x - panelSize.width / 2;
+                y = center.y - panelSize.height - 20;
+                
+                // 边界检查
+                if (x < 5) x = 5;
+                if (x + panelSize.width > getWidth() - 5) x = getWidth() - panelSize.width - 5;
+                if (y < 5) {
+                    // 上方放不下，放到下方
+                    y = center.y + 20;
+                }
+                
+                colorPanel.setBounds(x, y, panelSize.width, panelSize.height);
+                colorPanel.setVisible(!colorPanel.isVisible());
+                colorPanel.repaint();
+                return;
+            }
+        }
+        
+        // 默认：定位颜色面板在箭头按钮上方
+        JButton arrowBtn = annotationButtons.get(AnnotationMode.ARROW);
+        if (arrowBtn != null) {
+            showColorPanelNearButton(arrowBtn);
+        }
+    }
+    
+    private void showColorPanelNearButton(JButton button) {
+        if (colorPanel == null) {
+            createColorPanel();
+        }
+        
+        Dimension panelSize = colorPanel.getPreferredSize();
+        Point btnLoc = button.getLocationOnScreen();
+        Point panelLoc = capturePanel.getLocationOnScreen();
+        int x = btnLoc.x - panelLoc.x;
+        int y = btnLoc.y - panelLoc.y - panelSize.height - 5;
+        
+        // 如果上方放不下，放到下方
+        if (y < 0) {
+            y = btnLoc.y - panelLoc.y + button.getHeight() + 5;
+        }
+        
+        colorPanel.setBounds(x, y, panelSize.width, panelSize.height);
+        colorPanel.setVisible(true);
+        colorPanel.repaint();
     }
 
     private void showToolBar() {
@@ -1312,6 +1444,11 @@ public class ScreenCaptureWindow extends JFrame {
         default void scale(int handleType, Point newPos) {}
         default void drawHandles(Graphics2D g2d, int offsetX, int offsetY) {}
         default Point getCenter() { return null; }
+        
+        // 可选：支持颜色修改的标注可以覆盖这些方法
+        default boolean supportsColorChange() { return false; }
+        default void setColor(Color color) {}
+        default Color getColor() { return null; }
     }
 
     /**
@@ -1703,7 +1840,7 @@ public class ScreenCaptureWindow extends JFrame {
      */
     private static class ArrowAnnotation implements Annotation {
         private Point start, end;
-        private final Color color;
+        private Color color;
         private static final int HANDLE_SIZE = 8;
         private static final int ROTATE_HANDLE_DISTANCE = 25;
 
@@ -1712,6 +1849,15 @@ public class ScreenCaptureWindow extends JFrame {
             this.end = new Point(end);
             this.color = color;
         }
+        
+        @Override
+        public boolean supportsColorChange() { return true; }
+        
+        @Override
+        public void setColor(Color color) { this.color = color; }
+        
+        @Override
+        public Color getColor() { return this.color; }
 
         @Override
         public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
