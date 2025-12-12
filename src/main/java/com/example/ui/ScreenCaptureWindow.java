@@ -37,6 +37,8 @@ public class ScreenCaptureWindow extends JFrame {
     private ArrowStyle currentArrowStyle = ArrowStyle.ARROW; // 当前箭头样式
     private int currentArrowStroke = 2; // 当前箭头粗细
     private static final int[] STROKE_OPTIONS = {1, 2, 3, 4, 5}; // 粗细选项
+    private int currentTextSize = 16; // 当前文字大小
+    private static final int[] TEXT_SIZE_OPTIONS = {12, 14, 16, 18, 20, 24, 28, 32}; // 文字大小选项
     private java.util.List<Annotation> annotations = new java.util.ArrayList<>();
     private Point annotationStart;
     private Point annotationEnd;
@@ -55,6 +57,7 @@ public class ScreenCaptureWindow extends JFrame {
     private JPanel stylePanel; // 样式选择面板
     private JPanel strokePanel; // 粗细选择面板
     private JPanel arrowOptionsPanel; // 箭头选项综合面板
+    private JPanel textOptionsPanel; // 文字选项综合面板
     private static final Color[] PRESET_COLORS = {
         new Color(255, 0, 0),      // 红色
         new Color(255, 165, 0),    // 橙色
@@ -125,7 +128,10 @@ public class ScreenCaptureWindow extends JFrame {
 
         // 标注按钮
         JButton textButton = createToolButton("T 文字", "添加文字标注");
-        textButton.addActionListener(e -> setAnnotationMode(AnnotationMode.TEXT));
+        textButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.TEXT);
+            showTextOptionsPanel(textButton);
+        });
         annotationButtons.put(AnnotationMode.TEXT, textButton);
         
         JButton arrowButton = createToolButton("→ 箭头", "添加箭头标注");
@@ -743,6 +749,120 @@ public class ScreenCaptureWindow extends JFrame {
         }
     }
     
+    private void createTextOptionsPanel() {
+        textOptionsPanel = new JPanel();
+        textOptionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        textOptionsPanel.setBackground(new Color(45, 45, 45));
+        textOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(70, 70, 70), 1),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)
+        ));
+        textOptionsPanel.setVisible(false);
+        
+        // 字体大小选择区域
+        JPanel sizeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        sizeSection.setBackground(new Color(45, 45, 45));
+        
+        JLabel sizeLabel = new JLabel("字号:");
+        sizeLabel.setForeground(Color.WHITE);
+        sizeLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+        sizeSection.add(sizeLabel);
+        
+        // 字体大小下拉选择
+        JComboBox<Integer> sizeCombo = new JComboBox<>();
+        for (int size : TEXT_SIZE_OPTIONS) {
+            sizeCombo.addItem(size);
+        }
+        sizeCombo.setSelectedItem(currentTextSize);
+        sizeCombo.setPreferredSize(new Dimension(60, 24));
+        sizeCombo.setBackground(new Color(60, 60, 60));
+        sizeCombo.setForeground(Color.WHITE);
+        sizeCombo.addActionListener(e -> {
+            currentTextSize = (Integer) sizeCombo.getSelectedItem();
+            repaint();
+        });
+        sizeSection.add(sizeCombo);
+        
+        textOptionsPanel.add(sizeSection);
+        
+        // 分隔线
+        JSeparator sep = new JSeparator(SwingConstants.VERTICAL);
+        sep.setPreferredSize(new Dimension(1, 20));
+        sep.setForeground(new Color(80, 80, 80));
+        textOptionsPanel.add(sep);
+        
+        // 颜色选择区域
+        Color[] colors = {
+            new Color(255, 59, 48),    // 红色
+            new Color(255, 204, 0),    // 黄色
+            new Color(52, 199, 89),    // 绿色
+            new Color(0, 122, 255),    // 蓝色
+            Color.WHITE,               // 白色
+            new Color(142, 142, 147),  // 灰色
+            Color.BLACK                // 黑色
+        };
+        
+        for (Color color : colors) {
+            JButton colorBtn = new JButton() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    
+                    if (annotationColor.equals(color)) {
+                        g2d.setColor(new Color(0, 122, 255));
+                        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(3, 3, getWidth() - 6, getHeight() - 6, 4, 4);
+                    } else {
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
+                    }
+                }
+            };
+            colorBtn.setPreferredSize(new Dimension(30, 26));
+            colorBtn.setBackground(new Color(45, 45, 45));
+            colorBtn.setBorder(BorderFactory.createEmptyBorder());
+            colorBtn.setFocusPainted(false);
+            colorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            colorBtn.addActionListener(e -> {
+                annotationColor = color;
+                repaintAllComponents(textOptionsPanel);
+                repaint();
+            });
+            textOptionsPanel.add(colorBtn);
+        }
+        
+        capturePanel.add(textOptionsPanel);
+    }
+    
+    private void showTextOptionsPanel(JButton button) {
+        if (textOptionsPanel == null) {
+            createTextOptionsPanel();
+        }
+        
+        Dimension panelSize = textOptionsPanel.getPreferredSize();
+        Point btnLoc = button.getLocationOnScreen();
+        Point panelLoc = capturePanel.getLocationOnScreen();
+        int x = btnLoc.x - panelLoc.x;
+        int y = btnLoc.y - panelLoc.y - panelSize.height - 5;
+        
+        if (y < 0) {
+            y = btnLoc.y - panelLoc.y + button.getHeight() + 5;
+        }
+        
+        textOptionsPanel.setBounds(x, y, panelSize.width, panelSize.height);
+        textOptionsPanel.setVisible(true);
+        textOptionsPanel.repaint();
+    }
+    
+    private void hideTextOptionsPanel() {
+        if (textOptionsPanel != null && textOptionsPanel.isVisible()) {
+            textOptionsPanel.setVisible(false);
+        }
+    }
+    
     private void repaintAllComponents(java.awt.Container container) {
         container.repaint();
         for (java.awt.Component comp : container.getComponents()) {
@@ -866,6 +986,10 @@ public class ScreenCaptureWindow extends JFrame {
         if (mode != AnnotationMode.ARROW) {
             hideArrowOptionsPanel();
         }
+        // 切换到非文字模式时隐藏文字选项面板
+        if (mode != AnnotationMode.TEXT) {
+            hideTextOptionsPanel();
+        }
         
         // 更新按钮样式
         updateButtonStyles();
@@ -928,7 +1052,7 @@ public class ScreenCaptureWindow extends JFrame {
                         
                         // 文字模式：点击放置文字（可多次放置同一文字）
                         if (currentMode == AnnotationMode.TEXT && pendingText != null) {
-                            annotations.add(new TextAnnotation(p.x, p.y, pendingText, annotationColor));
+                            annotations.add(new TextAnnotation(p.x, p.y, pendingText, annotationColor, currentTextSize));
                             // 保持TEXT模式，可以继续放置同样的文字
                             repaint();
                             return;
@@ -1036,6 +1160,7 @@ public class ScreenCaptureWindow extends JFrame {
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
                     // 右键取消
                     hideArrowOptionsPanel();
+                    hideTextOptionsPanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
@@ -1937,27 +2062,29 @@ public class ScreenCaptureWindow extends JFrame {
         private int x, y;
         private final String text;
         private final Color color;
+        private final int fontSize;
         private Rectangle bounds;
 
-        public TextAnnotation(int x, int y, String text, Color color) {
+        public TextAnnotation(int x, int y, String text, Color color, int fontSize) {
             this.x = x;
             this.y = y;
             this.text = text;
             this.color = color;
+            this.fontSize = fontSize;
             updateBounds();
         }
         
         private void updateBounds() {
             // 估算文字边界（实际绘制时会更精确）
-            int width = text.length() * 10 + 10;
-            int height = 20;
+            int width = text.length() * (fontSize / 2) + 10;
+            int height = fontSize + 4;
             bounds = new Rectangle(x - 2, y - height + 4, width, height);
         }
 
         @Override
         public void draw(Graphics2D g2d, int offsetX, int offsetY, BufferedImage screenImage) {
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-            g2d.setFont(new Font("微软雅黑", Font.BOLD, 16));
+            g2d.setFont(new Font("微软雅黑", Font.BOLD, fontSize));
             FontMetrics fm = g2d.getFontMetrics();
             
             // 更新精确边界
