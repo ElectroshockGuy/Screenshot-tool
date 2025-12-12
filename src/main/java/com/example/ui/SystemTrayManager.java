@@ -90,6 +90,14 @@ public class SystemTrayManager {
         
         jPopupMenu.addSeparator();
         
+        // 主窗口菜单项
+        JMenuItem mainWindowItem = new JMenuItem("主窗口");
+        mainWindowItem.setFont(menuFont);
+        mainWindowItem.addActionListener(e -> showMainWindow());
+        jPopupMenu.add(mainWindowItem);
+        
+        jPopupMenu.addSeparator();
+        
         // 退出菜单项
         JMenuItem exitItem = new JMenuItem("退出");
         exitItem.setFont(menuFont);
@@ -108,20 +116,8 @@ public class SystemTrayManager {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() == 2) {
-                    // 双击左键打开截图，先最小化主窗口
-                    for (Window window : Window.getWindows()) {
-                        if (window instanceof JFrame && window.isVisible() && !(window instanceof ScreenCaptureWindow)) {
-                            ((JFrame) window).setExtendedState(JFrame.ICONIFIED);
-                        }
-                    }
-                    Timer timer = new Timer(300, evt -> {
-                        SwingUtilities.invokeLater(() -> {
-                            ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
-                            captureWindow.setVisible(true);
-                        });
-                    });
-                    timer.setRepeats(false);
-                    timer.start();
+                    // 双击左键打开主窗口
+                    showMainWindow();
                 }
             }
             
@@ -194,6 +190,25 @@ public class SystemTrayManager {
         
         g2d.dispose();
         return image;
+    }
+    
+    /**
+     * 显示主窗口
+     */
+    private void showMainWindow() {
+        for (Window window : Window.getWindows()) {
+            if (window instanceof MainFrame) {
+                MainFrame mainFrame = (MainFrame) window;
+                // 如果窗口最小化，恢复正常状态
+                if (mainFrame.getExtendedState() == JFrame.ICONIFIED) {
+                    mainFrame.setExtendedState(JFrame.NORMAL);
+                }
+                mainFrame.setVisible(true);
+                mainFrame.toFront();
+                mainFrame.requestFocus();
+                return;
+            }
+        }
     }
     
     /**
