@@ -1420,6 +1420,11 @@ public class ScreenCaptureWindow extends JFrame {
         addMouseListener(new MouseAdapter() {
             @Override
             public void mouseClicked(MouseEvent e) {
+                // 右键点击时消费事件，防止触发系统右键菜单
+                if (e.getButton() == MouseEvent.BUTTON3) {
+                    e.consume();
+                    return;
+                }
                 // 双击选区内直接复制到剪贴板
                 if (e.getClickCount() == 2 && e.getButton() == MouseEvent.BUTTON1) {
                     Point p = e.getPoint();
@@ -1564,26 +1569,9 @@ public class ScreenCaptureWindow extends JFrame {
                     endPoint = startPoint;
                     isSelecting = true;
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
-                    // 右键取消，消费事件防止触发系统右键菜单
+                    // 右键按下时只记录状态，不做处理
+                    // 实际处理在 mouseReleased 中进行
                     e.consume();
-                    hideArrowOptionsPanel();
-                    hideTextOptionsPanel();
-                    hideShapeOptionsPanel();
-                    hideNumberOptionsPanel();
-                    hidePinOptionsPanel();
-                    if (currentMode != AnnotationMode.NONE) {
-                        // 取消当前标注模式
-                        currentMode = AnnotationMode.NONE;
-                        updateButtonStyles();
-                        pendingText = null;
-                        repaint();
-                    } else if (selectionComplete) {
-                        // 在选区内右键直接取消截图
-                        dispose();
-                    } else {
-                        // 未选区时右键取消
-                        dispose();
-                    }
                 }
             }
 
@@ -1604,6 +1592,26 @@ public class ScreenCaptureWindow extends JFrame {
                         endPoint = e.getPoint();
                         isSelecting = false;
                         finishSelection();
+                    }
+                } else if (e.getButton() == MouseEvent.BUTTON3) {
+                    // 右键释放时处理取消逻辑
+                    e.consume();
+                    
+                    hideArrowOptionsPanel();
+                    hideTextOptionsPanel();
+                    hideShapeOptionsPanel();
+                    hideNumberOptionsPanel();
+                    hidePinOptionsPanel();
+                    
+                    if (currentMode != AnnotationMode.NONE) {
+                        // 取消当前标注模式
+                        currentMode = AnnotationMode.NONE;
+                        updateButtonStyles();
+                        pendingText = null;
+                        repaint();
+                    } else {
+                        // 关闭截图窗口
+                        dispose();
                     }
                 }
             }

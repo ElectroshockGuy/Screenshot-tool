@@ -60,10 +60,21 @@ public class SystemTrayManager {
         JMenuItem captureItem = new JMenuItem("截图");
         captureItem.setFont(menuFont);
         captureItem.addActionListener(e -> {
-            SwingUtilities.invokeLater(() -> {
-                ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
-                captureWindow.setVisible(true);
+            // 隐藏所有可见的主窗口
+            for (Window window : Window.getWindows()) {
+                if (window instanceof JFrame && window.isVisible() && !(window instanceof ScreenCaptureWindow)) {
+                    ((JFrame) window).setExtendedState(JFrame.ICONIFIED);
+                }
+            }
+            // 延迟启动截图，等待窗口最小化
+            Timer timer = new Timer(300, evt -> {
+                SwingUtilities.invokeLater(() -> {
+                    ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
+                    captureWindow.setVisible(true);
+                });
             });
+            timer.setRepeats(false);
+            timer.start();
         });
         jPopupMenu.add(captureItem);
         
@@ -97,11 +108,20 @@ public class SystemTrayManager {
             @Override
             public void mouseClicked(MouseEvent e) {
                 if (e.getButton() == MouseEvent.BUTTON1 && e.getClickCount() == 2) {
-                    // 双击左键打开截图
-                    SwingUtilities.invokeLater(() -> {
-                        ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
-                        captureWindow.setVisible(true);
+                    // 双击左键打开截图，先最小化主窗口
+                    for (Window window : Window.getWindows()) {
+                        if (window instanceof JFrame && window.isVisible() && !(window instanceof ScreenCaptureWindow)) {
+                            ((JFrame) window).setExtendedState(JFrame.ICONIFIED);
+                        }
+                    }
+                    Timer timer = new Timer(300, evt -> {
+                        SwingUtilities.invokeLater(() -> {
+                            ScreenCaptureWindow captureWindow = new ScreenCaptureWindow();
+                            captureWindow.setVisible(true);
+                        });
                     });
+                    timer.setRepeats(false);
+                    timer.start();
                 }
             }
             
