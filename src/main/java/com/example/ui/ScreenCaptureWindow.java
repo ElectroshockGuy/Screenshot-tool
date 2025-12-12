@@ -460,38 +460,162 @@ public class ScreenCaptureWindow extends JFrame {
     
     private void createArrowOptionsPanel() {
         arrowOptionsPanel = new JPanel();
-        arrowOptionsPanel.setLayout(new BoxLayout(arrowOptionsPanel, BoxLayout.Y_AXIS));
-        arrowOptionsPanel.setBackground(new Color(50, 50, 50));
+        arrowOptionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        arrowOptionsPanel.setBackground(new Color(45, 45, 45));
         arrowOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
-            BorderFactory.createLineBorder(new Color(80, 80, 80), 1),
-            BorderFactory.createEmptyBorder(6, 6, 6, 6)
+            BorderFactory.createLineBorder(new Color(70, 70, 70), 1),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)
         ));
         arrowOptionsPanel.setVisible(false);
         
-        // 颜色行
-        JPanel colorRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
-        colorRow.setBackground(new Color(50, 50, 50));
-        for (Color color : PRESET_COLORS) {
+        // 粗细滑块区域
+        JPanel strokeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        strokeSection.setBackground(new Color(45, 45, 45));
+        
+        // 小圆点指示器
+        JPanel dotIndicator = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setColor(new Color(0, 122, 255));
+                g2d.fillOval(2, (getHeight() - 8) / 2, 8, 8);
+            }
+        };
+        dotIndicator.setPreferredSize(new Dimension(12, 24));
+        dotIndicator.setBackground(new Color(45, 45, 45));
+        strokeSection.add(dotIndicator);
+        
+        // 粗细滑块
+        JSlider strokeSlider = new JSlider(1, 5, currentArrowStroke);
+        strokeSlider.setPreferredSize(new Dimension(60, 24));
+        strokeSlider.setBackground(new Color(45, 45, 45));
+        strokeSlider.setForeground(new Color(0, 122, 255));
+        strokeSlider.addChangeListener(e -> {
+            currentArrowStroke = strokeSlider.getValue();
+            repaint();
+        });
+        strokeSection.add(strokeSlider);
+        
+        // 大圆点指示器
+        JPanel bigDotIndicator = new JPanel() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g2d.setColor(Color.WHITE);
+                g2d.fillOval(2, (getHeight() - 14) / 2, 14, 14);
+            }
+        };
+        bigDotIndicator.setPreferredSize(new Dimension(18, 24));
+        bigDotIndicator.setBackground(new Color(45, 45, 45));
+        strokeSection.add(bigDotIndicator);
+        
+        arrowOptionsPanel.add(strokeSection);
+        
+        // 分隔线
+        JSeparator sep1 = new JSeparator(SwingConstants.VERTICAL);
+        sep1.setPreferredSize(new Dimension(1, 20));
+        sep1.setForeground(new Color(80, 80, 80));
+        arrowOptionsPanel.add(sep1);
+        
+        // 样式选择按钮（带下拉箭头）
+        JButton styleButton = new JButton() {
+            @Override
+            protected void paintComponent(Graphics g) {
+                super.paintComponent(g);
+                Graphics2D g2d = (Graphics2D) g;
+                g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                
+                // 绘制当前样式的箭头预览
+                g2d.setColor(Color.WHITE);
+                g2d.setStroke(new BasicStroke(2));
+                int y = getHeight() / 2;
+                g2d.drawLine(8, y, 28, y);
+                // 箭头头部
+                int[] xPoints = {28, 22, 22};
+                int[] yPoints = {y, y - 4, y + 4};
+                g2d.fillPolygon(xPoints, yPoints, 3);
+                
+                // 下拉箭头
+                g2d.setColor(new Color(150, 150, 150));
+                int[] triX = {36, 42, 39};
+                int[] triY = {y - 2, y - 2, y + 3};
+                g2d.fillPolygon(triX, triY, 3);
+            }
+        };
+        styleButton.setPreferredSize(new Dimension(50, 28));
+        styleButton.setBackground(new Color(60, 60, 60));
+        styleButton.setBorder(BorderFactory.createLineBorder(new Color(80, 80, 80), 1));
+        styleButton.setFocusPainted(false);
+        styleButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        styleButton.setToolTipText("选择样式");
+        
+        // 样式弹出菜单
+        JPopupMenu styleMenu = new JPopupMenu();
+        styleMenu.setBackground(new Color(50, 50, 50));
+        String[][] styles = {
+            {"→ 普通箭头", "ARROW"},
+            {"— 直线", "LINE"},
+            {"∿ 波浪线", "WAVY"},
+            {"┄ 虚线箭头", "DASHED"},
+            {"↔ 双向箭头", "DOUBLE_ARROW"}
+        };
+        for (String[] styleInfo : styles) {
+            JMenuItem item = new JMenuItem(styleInfo[0]);
+            item.setBackground(new Color(50, 50, 50));
+            item.setForeground(Color.WHITE);
+            item.addActionListener(e -> {
+                currentArrowStyle = ArrowStyle.valueOf(styleInfo[1]);
+                arrowOptionsPanel.repaint();
+                repaint();
+            });
+            styleMenu.add(item);
+        }
+        styleButton.addActionListener(e -> styleMenu.show(styleButton, 0, styleButton.getHeight()));
+        arrowOptionsPanel.add(styleButton);
+        
+        // 分隔线
+        JSeparator sep2 = new JSeparator(SwingConstants.VERTICAL);
+        sep2.setPreferredSize(new Dimension(1, 20));
+        sep2.setForeground(new Color(80, 80, 80));
+        arrowOptionsPanel.add(sep2);
+        
+        // 颜色选择区域（圆角矩形色块）
+        Color[] colors = {
+            new Color(255, 59, 48),    // 红色
+            new Color(255, 204, 0),    // 黄色
+            new Color(52, 199, 89),    // 绿色
+            new Color(0, 122, 255),    // 蓝色
+            Color.WHITE,               // 白色
+            new Color(142, 142, 147),  // 灰色
+            Color.BLACK                // 黑色
+        };
+        
+        for (Color color : colors) {
             JButton colorBtn = new JButton() {
                 @Override
                 protected void paintComponent(Graphics g) {
                     super.paintComponent(g);
                     Graphics2D g2d = (Graphics2D) g;
                     g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    int size = 14;
-                    int x = (getWidth() - size) / 2;
-                    int y = (getHeight() - size) / 2;
+                    
+                    // 圆角矩形色块
                     g2d.setColor(color);
-                    g2d.fillOval(x, y, size, size);
+                    g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
+                    
+                    // 选中状态边框
                     if (annotationColor.equals(color)) {
-                        g2d.setColor(Color.WHITE);
+                        g2d.setColor(new Color(0, 122, 255));
                         g2d.setStroke(new BasicStroke(2));
-                        g2d.drawOval(x - 1, y - 1, size + 2, size + 2);
+                        g2d.drawRoundRect(1, 1, getWidth() - 3, getHeight() - 3, 6, 6);
                     }
                 }
             };
-            colorBtn.setPreferredSize(new Dimension(22, 22));
-            colorBtn.setBackground(new Color(50, 50, 50));
+            colorBtn.setPreferredSize(new Dimension(28, 24));
+            colorBtn.setBackground(new Color(45, 45, 45));
             colorBtn.setBorder(BorderFactory.createEmptyBorder());
             colorBtn.setFocusPainted(false);
             colorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
@@ -503,88 +627,8 @@ public class ScreenCaptureWindow extends JFrame {
                 arrowOptionsPanel.repaint();
                 repaint();
             });
-            colorRow.add(colorBtn);
+            arrowOptionsPanel.add(colorBtn);
         }
-        arrowOptionsPanel.add(colorRow);
-        arrowOptionsPanel.add(Box.createVerticalStrut(4));
-        
-        // 样式行
-        JPanel styleRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
-        styleRow.setBackground(new Color(50, 50, 50));
-        String[][] styles = {
-            {"→", "ARROW", "普通箭头"},
-            {"—", "LINE", "直线"},
-            {"∿", "WAVY", "波浪线"},
-            {"┄", "DASHED", "虚线箭头"},
-            {"↔", "DOUBLE_ARROW", "双向箭头"}
-        };
-        for (String[] styleInfo : styles) {
-            ArrowStyle arrowStyle = ArrowStyle.valueOf(styleInfo[1]);
-            JButton styleBtn = new JButton(styleInfo[0]) {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    super.paintComponent(g);
-                    if (currentArrowStyle == arrowStyle) {
-                        Graphics2D g2d = (Graphics2D) g;
-                        g2d.setColor(new Color(0, 120, 215));
-                        g2d.setStroke(new BasicStroke(2));
-                        g2d.drawRect(1, 1, getWidth() - 3, getHeight() - 3);
-                    }
-                }
-            };
-            styleBtn.setFont(new Font("微软雅黑", Font.PLAIN, 12));
-            styleBtn.setPreferredSize(new Dimension(28, 22));
-            styleBtn.setBackground(new Color(60, 60, 60));
-            styleBtn.setForeground(Color.WHITE);
-            styleBtn.setBorder(BorderFactory.createEmptyBorder());
-            styleBtn.setFocusPainted(false);
-            styleBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            styleBtn.setToolTipText(styleInfo[2]);
-            styleBtn.addActionListener(e -> {
-                currentArrowStyle = arrowStyle;
-                arrowOptionsPanel.repaint();
-                repaint();
-            });
-            styleRow.add(styleBtn);
-        }
-        arrowOptionsPanel.add(styleRow);
-        arrowOptionsPanel.add(Box.createVerticalStrut(4));
-        
-        // 粗细行
-        JPanel strokeRow = new JPanel(new FlowLayout(FlowLayout.LEFT, 3, 0));
-        strokeRow.setBackground(new Color(50, 50, 50));
-        for (int stroke : STROKE_OPTIONS) {
-            JButton strokeBtn = new JButton() {
-                @Override
-                protected void paintComponent(Graphics g) {
-                    super.paintComponent(g);
-                    Graphics2D g2d = (Graphics2D) g;
-                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g2d.setColor(Color.WHITE);
-                    g2d.setStroke(new BasicStroke(stroke));
-                    int y = getHeight() / 2;
-                    g2d.drawLine(4, y, getWidth() - 4, y);
-                    if (currentArrowStroke == stroke) {
-                        g2d.setColor(new Color(0, 120, 215));
-                        g2d.setStroke(new BasicStroke(2));
-                        g2d.drawRect(1, 1, getWidth() - 3, getHeight() - 3);
-                    }
-                }
-            };
-            strokeBtn.setPreferredSize(new Dimension(28, 20));
-            strokeBtn.setBackground(new Color(60, 60, 60));
-            strokeBtn.setBorder(BorderFactory.createEmptyBorder());
-            strokeBtn.setFocusPainted(false);
-            strokeBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
-            strokeBtn.setToolTipText("粗细: " + stroke + "px");
-            strokeBtn.addActionListener(e -> {
-                currentArrowStroke = stroke;
-                arrowOptionsPanel.repaint();
-                repaint();
-            });
-            strokeRow.add(strokeBtn);
-        }
-        arrowOptionsPanel.add(strokeRow);
         
         capturePanel.add(arrowOptionsPanel);
     }
