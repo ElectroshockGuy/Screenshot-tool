@@ -60,6 +60,8 @@ public class ScreenCaptureWindow extends JFrame {
     private JPanel textOptionsPanel; // 文字选项综合面板
     private JPanel shapeOptionsPanel; // 形状选项综合面板（矩形、圆形、画笔）
     private int currentShapeStroke = 2; // 当前形状粗细
+    private JPanel numberOptionsPanel; // 序号选项面板
+    private int currentNumberSize = 24; // 当前序号大小
     private static final Color[] PRESET_COLORS = {
         new Color(255, 0, 0),      // 红色
         new Color(255, 165, 0),    // 橙色
@@ -148,7 +150,10 @@ public class ScreenCaptureWindow extends JFrame {
         annotationButtons.put(AnnotationMode.MOSAIC, mosaicButton);
         
         JButton numberButton = createToolButton("① 序号", "添加序号标注");
-        numberButton.addActionListener(e -> setAnnotationMode(AnnotationMode.NUMBER));
+        numberButton.addActionListener(e -> {
+            setAnnotationMode(AnnotationMode.NUMBER);
+            showNumberOptionsPanel(numberButton);
+        });
         annotationButtons.put(AnnotationMode.NUMBER, numberButton);
         
         JButton rectButton = createToolButton("□ 矩形", "添加矩形框");
@@ -1044,6 +1049,117 @@ public class ScreenCaptureWindow extends JFrame {
         }
     }
     
+    private void createNumberOptionsPanel() {
+        numberOptionsPanel = new JPanel();
+        numberOptionsPanel.setLayout(new FlowLayout(FlowLayout.LEFT, 8, 4));
+        numberOptionsPanel.setBackground(new Color(45, 45, 45));
+        numberOptionsPanel.setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(70, 70, 70), 1),
+            BorderFactory.createEmptyBorder(4, 8, 4, 8)
+        ));
+        numberOptionsPanel.setVisible(false);
+        
+        // 大小选择区域
+        JPanel sizeSection = new JPanel(new FlowLayout(FlowLayout.LEFT, 4, 0));
+        sizeSection.setBackground(new Color(45, 45, 45));
+        
+        JLabel sizeLabel = new JLabel("大小:");
+        sizeLabel.setForeground(Color.WHITE);
+        sizeLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+        sizeSection.add(sizeLabel);
+        
+        Integer[] sizes = {16, 20, 24, 28, 32, 36};
+        JComboBox<Integer> sizeCombo = new JComboBox<>(sizes);
+        sizeCombo.setSelectedItem(currentNumberSize);
+        sizeCombo.setPreferredSize(new Dimension(60, 24));
+        sizeCombo.setBackground(new Color(60, 60, 60));
+        sizeCombo.setForeground(Color.WHITE);
+        sizeCombo.addActionListener(e -> {
+            currentNumberSize = (Integer) sizeCombo.getSelectedItem();
+            repaint();
+        });
+        sizeSection.add(sizeCombo);
+        
+        numberOptionsPanel.add(sizeSection);
+        
+        // 分隔线
+        JSeparator sep = new JSeparator(SwingConstants.VERTICAL);
+        sep.setPreferredSize(new Dimension(1, 20));
+        sep.setForeground(new Color(80, 80, 80));
+        numberOptionsPanel.add(sep);
+        
+        // 颜色选择区域
+        Color[] colors = {
+            new Color(255, 59, 48),
+            new Color(255, 204, 0),
+            new Color(52, 199, 89),
+            new Color(0, 122, 255),
+            Color.WHITE,
+            new Color(142, 142, 147),
+            Color.BLACK
+        };
+        
+        for (Color color : colors) {
+            JButton colorBtn = new JButton() {
+                @Override
+                protected void paintComponent(Graphics g) {
+                    super.paintComponent(g);
+                    Graphics2D g2d = (Graphics2D) g;
+                    g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                    
+                    if (annotationColor.equals(color)) {
+                        g2d.setColor(new Color(0, 122, 255));
+                        g2d.fillRoundRect(0, 0, getWidth(), getHeight(), 8, 8);
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(3, 3, getWidth() - 6, getHeight() - 6, 4, 4);
+                    } else {
+                        g2d.setColor(color);
+                        g2d.fillRoundRect(2, 2, getWidth() - 4, getHeight() - 4, 6, 6);
+                    }
+                }
+            };
+            colorBtn.setPreferredSize(new Dimension(30, 26));
+            colorBtn.setBackground(new Color(45, 45, 45));
+            colorBtn.setBorder(BorderFactory.createEmptyBorder());
+            colorBtn.setFocusPainted(false);
+            colorBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+            colorBtn.addActionListener(e -> {
+                annotationColor = color;
+                repaintAllComponents(numberOptionsPanel);
+                repaint();
+            });
+            numberOptionsPanel.add(colorBtn);
+        }
+        
+        capturePanel.add(numberOptionsPanel);
+    }
+    
+    private void showNumberOptionsPanel(JButton button) {
+        if (numberOptionsPanel == null) {
+            createNumberOptionsPanel();
+        }
+        
+        Dimension panelSize = numberOptionsPanel.getPreferredSize();
+        Point btnLoc = button.getLocationOnScreen();
+        Point panelLoc = capturePanel.getLocationOnScreen();
+        int x = btnLoc.x - panelLoc.x;
+        int y = btnLoc.y - panelLoc.y - panelSize.height - 5;
+        
+        if (y < 0) {
+            y = btnLoc.y - panelLoc.y + button.getHeight() + 5;
+        }
+        
+        numberOptionsPanel.setBounds(x, y, panelSize.width, panelSize.height);
+        numberOptionsPanel.setVisible(true);
+        numberOptionsPanel.repaint();
+    }
+    
+    private void hideNumberOptionsPanel() {
+        if (numberOptionsPanel != null && numberOptionsPanel.isVisible()) {
+            numberOptionsPanel.setVisible(false);
+        }
+    }
+    
     private void repaintAllComponents(java.awt.Container container) {
         container.repaint();
         for (java.awt.Component comp : container.getComponents()) {
@@ -1175,6 +1291,10 @@ public class ScreenCaptureWindow extends JFrame {
         if (mode != AnnotationMode.RECT && mode != AnnotationMode.CIRCLE && mode != AnnotationMode.PEN) {
             hideShapeOptionsPanel();
         }
+        // 切换到非序号模式时隐藏序号选项面板
+        if (mode != AnnotationMode.NUMBER) {
+            hideNumberOptionsPanel();
+        }
         
         // 更新按钮样式
         updateButtonStyles();
@@ -1245,7 +1365,7 @@ public class ScreenCaptureWindow extends JFrame {
                         
                         // 序号模式：点击放置序号（自动递增）
                         if (currentMode == AnnotationMode.NUMBER) {
-                            annotations.add(new NumberAnnotation(p.x, p.y, nextNumber++, annotationColor));
+                            annotations.add(new NumberAnnotation(p.x, p.y, nextNumber++, annotationColor, currentNumberSize));
                             // 保持NUMBER模式，可以继续放置下一个序号
                             repaint();
                             return;
@@ -1338,6 +1458,7 @@ public class ScreenCaptureWindow extends JFrame {
                         hideArrowOptionsPanel();
                         hideTextOptionsPanel();
                         hideShapeOptionsPanel();
+                        hideNumberOptionsPanel();
                         annotations.clear();
                         currentMode = AnnotationMode.NONE;
                         pendingText = null;
@@ -1350,6 +1471,7 @@ public class ScreenCaptureWindow extends JFrame {
                     hideArrowOptionsPanel();
                     hideTextOptionsPanel();
                     hideShapeOptionsPanel();
+                    hideNumberOptionsPanel();
                     if (currentMode != AnnotationMode.NONE) {
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
@@ -2313,13 +2435,14 @@ public class ScreenCaptureWindow extends JFrame {
         private int x, y;
         private final int number;
         private final Color color;
-        private static final int SIZE = 24;
+        private final int size;
 
-        public NumberAnnotation(int x, int y, int number, Color color) {
+        public NumberAnnotation(int x, int y, int number, Color color, int size) {
             this.x = x;
             this.y = y;
             this.number = number;
             this.color = color;
+            this.size = size;
         }
 
         @Override
@@ -2331,16 +2454,17 @@ public class ScreenCaptureWindow extends JFrame {
             
             // 圆形背景
             g2d.setColor(color);
-            g2d.fillOval(cx - SIZE / 2, cy - SIZE / 2, SIZE, SIZE);
+            g2d.fillOval(cx - size / 2, cy - size / 2, size, size);
             
             // 白色边框
             g2d.setColor(Color.WHITE);
             g2d.setStroke(new BasicStroke(1));
-            g2d.drawOval(cx - SIZE / 2, cy - SIZE / 2, SIZE, SIZE);
+            g2d.drawOval(cx - size / 2, cy - size / 2, size, size);
             
             // 数字
             g2d.setColor(Color.WHITE);
-            g2d.setFont(new Font("Arial", Font.BOLD, 14));
+            int fontSize = (int)(size * 0.6);
+            g2d.setFont(new Font("Arial", Font.BOLD, fontSize));
             FontMetrics fm = g2d.getFontMetrics();
             String numStr = String.valueOf(number);
             int textWidth = fm.stringWidth(numStr);
@@ -2350,7 +2474,7 @@ public class ScreenCaptureWindow extends JFrame {
         @Override
         public boolean contains(Point p) {
             double dist = Math.sqrt((p.x - x) * (p.x - x) + (p.y - y) * (p.y - y));
-            return dist <= SIZE / 2 + 3; // 稍微增大点击范围
+            return dist <= size / 2 + 3; // 稍微增大点击范围
         }
         
         @Override
