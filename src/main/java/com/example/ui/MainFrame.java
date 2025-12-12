@@ -39,9 +39,9 @@ public class MainFrame extends JFrame {
     }
 
     private void initComponents() {
-        setTitle("SpringBoot + Swing 示例应用");
+        setTitle("截图工具");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        setSize(600, 450);
+        setSize(500, 520);
         setLocationRelativeTo(null); // 居中显示
 
         // 创建菜单栏
@@ -176,14 +176,36 @@ public class MainFrame extends JFrame {
 
         // 标题
         JLabel titleLabel = new JLabel("截图工具");
-        titleLabel.setFont(new Font("微软雅黑", Font.BOLD, 28));
+        titleLabel.setFont(new Font("微软雅黑", Font.BOLD, 32));
         titleLabel.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
 
         // 副标题
-        JLabel subtitleLabel = new JLabel("轻量级截图与取色工具");
+        JLabel subtitleLabel = new JLabel("轻量、快捷、功能丰富的截图工具");
         subtitleLabel.setFont(new Font("微软雅黑", Font.PLAIN, 14));
         subtitleLabel.setForeground(new Color(128, 128, 128));
         subtitleLabel.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
+
+        // 功能描述面板
+        JPanel featurePanel = new JPanel();
+        featurePanel.setLayout(new BoxLayout(featurePanel, BoxLayout.Y_AXIS));
+        featurePanel.setOpaque(false);
+        featurePanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 10, 0));
+        
+        String[] features = {
+            "📷 选区截图 - 支持多种标注工具",
+            "📌 图片置顶 - 支持强制置顶模式",
+            "🎨 取色器 - 按C键复制颜色值",
+            "✏️ 丰富标注 - 箭头/文字/形状/序号"
+        };
+        
+        for (String feature : features) {
+            JLabel featureLabel = new JLabel(feature);
+            featureLabel.setFont(new Font("微软雅黑", Font.PLAIN, 12));
+            featureLabel.setForeground(new Color(100, 100, 100));
+            featureLabel.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
+            featurePanel.add(featureLabel);
+            featurePanel.add(Box.createVerticalStrut(4));
+        }
 
         // 按钮面板
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 20, 10));
@@ -225,54 +247,42 @@ public class MainFrame extends JFrame {
         JPanel shortcutPanel = new JPanel();
         shortcutPanel.setLayout(new BoxLayout(shortcutPanel, BoxLayout.Y_AXIS));
         shortcutPanel.setOpaque(false);
-        shortcutPanel.setBorder(BorderFactory.createEmptyBorder(20, 0, 0, 0));
+        shortcutPanel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
-        JLabel shortcutTitle = new JLabel("快捷键");
-        shortcutTitle.setFont(new Font("微软雅黑", Font.BOLD, 12));
+        JLabel shortcutTitle = new JLabel("⌨️ 快捷键");
+        shortcutTitle.setFont(new Font("微软雅黑", Font.BOLD, 11));
         shortcutTitle.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
 
-        JLabel shortcut1 = new JLabel("Ctrl+Shift+S  选区截图");
-        shortcut1.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        shortcut1.setForeground(new Color(100, 100, 100));
-        shortcut1.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
-
-        JLabel shortcut2 = new JLabel("Ctrl+Shift+A  全屏截图");
-        shortcut2.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        shortcut2.setForeground(new Color(100, 100, 100));
-        shortcut2.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
-
-        JLabel shortcut3 = new JLabel("Ctrl+Shift+T  图片置顶");
-        shortcut3.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        shortcut3.setForeground(new Color(100, 100, 100));
-        shortcut3.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
-
-        JLabel shortcut4 = new JLabel("C键  复制色值（截图时）");
-        shortcut4.setFont(new Font("微软雅黑", Font.PLAIN, 11));
-        shortcut4.setForeground(new Color(100, 100, 100));
-        shortcut4.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
-
+        String[] shortcuts = {
+            "Ctrl+Shift+S 选区截图  |  Ctrl+Shift+A 全屏截图",
+            "Ctrl+Shift+T 图片置顶  |  C键 复制色值  |  ESC 取消"
+        };
+        
         shortcutPanel.add(shortcutTitle);
-        shortcutPanel.add(Box.createVerticalStrut(8));
-        shortcutPanel.add(shortcut1);
-        shortcutPanel.add(Box.createVerticalStrut(4));
-        shortcutPanel.add(shortcut2);
-        shortcutPanel.add(Box.createVerticalStrut(4));
-        shortcutPanel.add(shortcut3);
-        shortcutPanel.add(Box.createVerticalStrut(4));
-        shortcutPanel.add(shortcut4);
+        shortcutPanel.add(Box.createVerticalStrut(6));
+        
+        for (String shortcut : shortcuts) {
+            JLabel label = new JLabel(shortcut);
+            label.setFont(new Font("微软雅黑", Font.PLAIN, 10));
+            label.setForeground(new Color(120, 120, 120));
+            label.setAlignmentX(java.awt.Component.CENTER_ALIGNMENT);
+            shortcutPanel.add(label);
+            shortcutPanel.add(Box.createVerticalStrut(3));
+        }
 
         // 组装中间面板
         centerPanel.add(Box.createVerticalGlue());
         centerPanel.add(titleLabel);
         centerPanel.add(Box.createVerticalStrut(8));
         centerPanel.add(subtitleLabel);
-        centerPanel.add(Box.createVerticalStrut(30));
+        centerPanel.add(Box.createVerticalStrut(20));
+        centerPanel.add(featurePanel);
         centerPanel.add(buttonPanel);
         centerPanel.add(shortcutPanel);
         centerPanel.add(Box.createVerticalGlue());
 
         // 底部状态栏
-        JLabel statusLabel = new JLabel("截图时按C键可复制鼠标位置的颜色值");
+        JLabel statusLabel = new JLabel("💡 提示：程序最小化后可通过系统托盘访问");
         statusLabel.setFont(new Font("微软雅黑", Font.PLAIN, 11));
         statusLabel.setForeground(new Color(150, 150, 150));
         statusLabel.setHorizontalAlignment(SwingConstants.CENTER);

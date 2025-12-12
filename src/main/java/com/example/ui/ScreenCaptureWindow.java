@@ -1564,27 +1564,24 @@ public class ScreenCaptureWindow extends JFrame {
                     endPoint = startPoint;
                     isSelecting = true;
                 } else if (e.getButton() == MouseEvent.BUTTON3) {
-                    // 右键取消
+                    // 右键取消，消费事件防止触发系统右键菜单
+                    e.consume();
                     hideArrowOptionsPanel();
                     hideTextOptionsPanel();
                     hideShapeOptionsPanel();
                     hideNumberOptionsPanel();
                     hidePinOptionsPanel();
                     if (currentMode != AnnotationMode.NONE) {
+                        // 取消当前标注模式
                         currentMode = AnnotationMode.NONE;
                         updateButtonStyles();
                         pendingText = null;
                         repaint();
                     } else if (selectionComplete) {
-                        // 如果已选择，右键清除选区重新选择
-                        selectionComplete = false;
-                        toolBar.setVisible(false);
-                        startPoint = null;
-                        endPoint = null;
-                        captureRect = null;
-                        annotations.clear();
-                        repaint();
+                        // 在选区内右键直接取消截图
+                        dispose();
                     } else {
+                        // 未选区时右键取消
                         dispose();
                     }
                 }
